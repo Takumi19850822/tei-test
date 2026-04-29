@@ -1,13 +1,23 @@
 const COOKIE_NAME = "tei_session";
 const MAX_AGE_SEC = 7 * 24 * 3600;
 
+/** ローカル `next dev`、または `.dev.vars` の `NEXTJS_ENV=development`（Cloudflare プレビュー等） */
+function isDevLikeRuntime(): boolean {
+  return (
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXTJS_ENV === "development"
+  );
+}
+
 function getSessionSecret(): string {
   const s = process.env.SESSION_SECRET?.trim();
   if (s && s.length >= 32) return s;
-  if (process.env.NODE_ENV === "development") {
+  if (isDevLikeRuntime()) {
     return "dev-tei-session-secret-32chars-min!!";
   }
-  throw new Error("SESSION_SECRET が未設定です（32文字以上を設定してください）。");
+  throw new Error(
+    "SESSION_SECRET が未設定です（32文字以上が必要です）。本番の Worker では wrangler secret またはダッシュボードで設定してください。",
+  );
 }
 
 function b64url(bytes: Uint8Array): string {

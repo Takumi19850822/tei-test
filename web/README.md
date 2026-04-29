@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# テイ製作所 業務 Web（Next.js + Supabase + Cloudflare）
 
-## Getting Started
+## 最初に読む（環境でコケない）
 
-First, run the development server:
+**Cloudflare プレビューやログインで迷ったら、ここを上から順に実行してください。**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+→ **[`ENV_SETUP.md`](./ENV_SETUP.md)**（コピペ手順・失敗表・Git で上げないファイル）
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## よく使うコマンド（`web` ディレクトリで）
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| 目的 | コマンド |
+|------|----------|
+| ローカル開発（Next のみ） | `npm run dev` → http://localhost:3000 |
+| `.dev.vars` だけ検査 | `npm run check:env` |
+| Cloudflare 同梱プレビュー | `npm run preview`（**先に check:env が走ります**） |
+| Cloudflare 本番デプロイ | `npm run deploy`（秘密情報は Wrangler / ダッシュボード。手順は `ENV_SETUP.md`） |
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## ファイル雛形
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| ファイル | 用途 |
+|----------|------|
+| [`.dev.vars.example`](./.dev.vars.example) | コピーして `.dev.vars` を作る（**Git に上げない**） |
+| [`.env.local.example`](./.env.local.example) | コピーして `.env.local` を作る（`npm run dev` 用・**Git に上げない**） |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 技術スタック
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Next.js 16（App Router）、Supabase、OpenNext + Cloudflare Workers。詳細な実装一覧はリポジトリ直下の `IMPLEMENTATION_STATUS.md` を参照。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## create-next-app 由来のドキュメント
+
+- [Next.js Documentation](https://nextjs.org/docs)

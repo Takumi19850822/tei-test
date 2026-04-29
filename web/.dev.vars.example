@@ -1,6 +1,8 @@
 # opennextjs-cloudflare の preview / wrangler dev 用。
-# コピーして .dev.vars を作成し、値は .env.local と同じにしてください。
+# 【手順の全文】このファイルをコピーして .dev.vars を作ったら web/ENV_SETUP.md の「まずここだけ」を順に実行。
+# （Git に .dev.vars をコミットしないこと）
 NEXTJS_ENV=development
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# 省略可: NEXTJS_ENV=development のときはアプリ側の開発用既定値が使われます（本番では必ず 32 文字以上を設定）。
 SESSION_SECRET=please_use_at_least_32_characters_long_secret_value
