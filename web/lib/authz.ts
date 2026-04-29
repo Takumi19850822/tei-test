@@ -11,6 +11,7 @@ const MENU_PERMISSIONS = {
   cases: "cases",
   estimates: "estimates",
   orders: "orders",
+  smallOrders: "small-orders",
   estimateLines: "estimate-lines",
   orderLines: "order-lines",
   manufacturingJobs: "manufacturing-jobs",
@@ -21,7 +22,9 @@ const MENU_PERMISSIONS = {
   customerContacts: "customer-contacts",
   billingInfos: "billing-infos",
   deliveryDestinations: "delivery-destinations",
+  taxRates: "tax-rates",
   invoices: "invoices",
+  staff: "staff",
 } as const;
 
 export type MenuPermissionKey = keyof typeof MENU_PERMISSIONS;

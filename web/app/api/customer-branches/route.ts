@@ -45,6 +45,17 @@ export async function POST(request: Request) {
     const customerId = String(body.customerId ?? "").trim();
     if (!customerId) return badRequest("customerIdは必須です。");
     const supabase = createSupabaseAdminClient();
+    const closingRaw = body.closingDay;
+    const paymentRaw = body.paymentDay;
+    const closingDay =
+      closingRaw === null || closingRaw === undefined || closingRaw === ""
+        ? null
+        : Number.parseInt(String(closingRaw), 10);
+    const paymentDay =
+      paymentRaw === null || paymentRaw === undefined || paymentRaw === ""
+        ? null
+        : Number.parseInt(String(paymentRaw), 10);
+
     const { data, error } = await supabase
       .from("customer_branches")
       .insert({
@@ -55,6 +66,10 @@ export async function POST(request: Request) {
         address_line: String(body.addressLine ?? "").trim() || null,
         phone: String(body.phone ?? "").trim() || null,
         email: String(body.email ?? "").trim() || null,
+        yayoi_code: String(body.yayoiCode ?? "").trim() || null,
+        closing_day: Number.isInteger(closingDay) ? closingDay : null,
+        payment_day: Number.isInteger(paymentDay) ? paymentDay : null,
+        other_code: String(body.otherCode ?? "").trim() || null,
       })
       .select("*")
       .single();

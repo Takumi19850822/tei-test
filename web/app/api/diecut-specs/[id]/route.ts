@@ -27,6 +27,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const updates: Record<string, unknown> = { version: expectedVersion + 1 };
     if (typeof body.moldNo === "string") updates.mold_no = body.moldNo.trim();
+    if (body.depositItems !== undefined) updates.deposit_items = body.depositItems ?? {};
     if (typeof body.machineName === "string")
       updates.machine_name = body.machineName.trim();
     if (typeof body.paperName === "string") updates.paper_name = body.paperName.trim();
@@ -34,6 +35,22 @@ export async function PATCH(request: Request, { params }: Params) {
     if (typeof body.surfaceProcessing === "string")
       updates.surface_processing = body.surfaceProcessing.trim();
     if (typeof body.moldJaw === "string") updates.mold_jaw = body.moldJaw.trim();
+    if (typeof body.moldAdjustmentValue === "string")
+      updates.mold_adjustment_value = body.moldAdjustmentValue.trim();
+    if (typeof body.nick1 === "string") updates.nick_1 = body.nick1.trim();
+    if (typeof body.nick2 === "string") updates.nick_2 = body.nick2.trim();
+    if (typeof body.processName1 === "string")
+      updates.process_name_1 = body.processName1.trim();
+    if (typeof body.processName2 === "string")
+      updates.process_name_2 = body.processName2.trim();
+    if (typeof body.processName3 === "string")
+      updates.process_name_3 = body.processName3.trim();
+    if (typeof body.processName4 === "string")
+      updates.process_name_4 = body.processName4.trim();
+    if (typeof body.processName5 === "string")
+      updates.process_name_5 = body.processName5.trim();
+    if (typeof body.processName6 === "string")
+      updates.process_name_6 = body.processName6.trim();
     if (body.processNotes !== undefined) updates.process_notes = body.processNotes ?? {};
 
     const supabase = createSupabaseAdminClient();

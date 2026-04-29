@@ -48,6 +48,14 @@ export async function POST(request: Request) {
       return badRequest("案件名と顧客名は必須です。");
     }
 
+    const uuidOrNull = (v: unknown) => {
+      const s = String(v ?? "").trim();
+      return s || null;
+    };
+
+    const salesFromBody = uuidOrNull(body.salesUserId);
+    const sales_user_id = salesFromBody ?? access.actorUserId ?? null;
+
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("cases")
@@ -56,7 +64,10 @@ export async function POST(request: Request) {
         customer_name: customerName,
         status,
         memo: memo || null,
-        sales_user_id: access.actorUserId ?? null,
+        sales_user_id,
+        case_type_id: uuidOrNull(body.caseTypeId),
+        customer_branch_id: uuidOrNull(body.customerBranchId),
+        customer_contact_id: uuidOrNull(body.customerContactId),
       })
       .select("*")
       .single();

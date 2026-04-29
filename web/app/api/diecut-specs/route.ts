@@ -55,9 +55,21 @@ export async function POST(request: Request) {
       .insert({
         order_id: orderId,
         mold_no: String(body.moldNo ?? "").trim() || null,
+        deposit_items: body.depositItems ?? {},
         machine_name: String(body.machineName ?? "").trim() || null,
         paper_name: String(body.paperName ?? "").trim() || null,
         paper_size: String(body.paperSize ?? "").trim() || null,
+        surface_processing: String(body.surfaceProcessing ?? "").trim() || null,
+        mold_jaw: String(body.moldJaw ?? "").trim() || null,
+        mold_adjustment_value: String(body.moldAdjustmentValue ?? "").trim() || null,
+        nick_1: String(body.nick1 ?? "").trim() || null,
+        nick_2: String(body.nick2 ?? "").trim() || null,
+        process_name_1: String(body.processName1 ?? "").trim() || null,
+        process_name_2: String(body.processName2 ?? "").trim() || null,
+        process_name_3: String(body.processName3 ?? "").trim() || null,
+        process_name_4: String(body.processName4 ?? "").trim() || null,
+        process_name_5: String(body.processName5 ?? "").trim() || null,
+        process_name_6: String(body.processName6 ?? "").trim() || null,
         process_notes: body.processNotes ?? {},
       })
       .select("*")

@@ -26,15 +26,25 @@ export async function PATCH(request: Request, { params }: Params) {
     if (!Number.isInteger(expectedVersion)) return badRequest("versionは必須です。");
 
     const updates: Record<string, unknown> = { version: expectedVersion + 1 };
+    if (body.deliveryDestinationId !== undefined)
+      updates.delivery_destination_id = body.deliveryDestinationId || null;
     if (typeof body.deliveryMethod === "string")
       updates.delivery_method = body.deliveryMethod.trim();
+    if (typeof body.dataNote === "string") updates.data_note = body.dataNote.trim();
     if (typeof body.specification === "string")
       updates.specification = body.specification.trim();
     if (typeof body.printSurface === "string")
       updates.print_surface = body.printSurface.trim();
     if (typeof body.printBack === "string")
       updates.print_back = body.printBack.trim();
+    if (typeof body.varnish === "string") updates.varnish = body.varnish.trim();
+    if (typeof body.plate === "string") updates.plate = body.plate.trim();
+    if (typeof body.pp === "string") updates.pp = body.pp.trim();
+    if (typeof body.wpp === "string") updates.wpp = body.wpp.trim();
+    if (typeof body.lamination === "string")
+      updates.lamination = body.lamination.trim();
     if (typeof body.memo === "string") updates.memo = body.memo.trim();
+    if (typeof body.imageUrl === "string") updates.image_url = body.imageUrl.trim();
     if (body.suppliedMaterials !== undefined)
       updates.supplied_materials = body.suppliedMaterials ?? {};
     if (body.arrangedMaterials !== undefined)

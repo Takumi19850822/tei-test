@@ -56,12 +56,19 @@ export async function POST(request: Request) {
         order_id: orderId,
         delivery_destination_id: body.deliveryDestinationId ?? null,
         delivery_method: String(body.deliveryMethod ?? "").trim() || null,
+        data_note: String(body.dataNote ?? "").trim() || null,
         specification: String(body.specification ?? "").trim() || null,
         supplied_materials: body.suppliedMaterials ?? {},
         arranged_materials: body.arrangedMaterials ?? {},
         print_surface: String(body.printSurface ?? "").trim() || null,
         print_back: String(body.printBack ?? "").trim() || null,
+        varnish: String(body.varnish ?? "").trim() || null,
+        plate: String(body.plate ?? "").trim() || null,
+        pp: String(body.pp ?? "").trim() || null,
+        wpp: String(body.wpp ?? "").trim() || null,
+        lamination: String(body.lamination ?? "").trim() || null,
         memo: String(body.memo ?? "").trim() || null,
+        image_url: String(body.imageUrl ?? "").trim() || null,
       })
       .select("*")
       .single();

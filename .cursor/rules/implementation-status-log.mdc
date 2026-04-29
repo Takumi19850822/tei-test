@@ -1,0 +1,14 @@
+---
+description: 実装状況MDを常に更新する
+alwaysApply: true
+---
+
+# 実装状況管理ルール
+
+- 実装や仕様変更を行ったら、同じ作業内で必ず `IMPLEMENTATION_STATUS.md` を更新する。
+- `IMPLEMENTATION_STATUS.md` は次の3区分を必須とする。
+  - 実装済み
+  - 未実装
+  - 実装予定
+- 「次フェーズ」「あとで対応」などの記述をコード内コメントや画面文言に残さない。
+- ユーザーへの回答時は、変更点と未実装を `IMPLEMENTATION_STATUS.md` に合わせて明示する。
