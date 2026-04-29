@@ -1,0 +1,49 @@
+-- Seed minimum master data for production-like operation.
+-- This file is idempotent.
+
+insert into user_groups (id, group_name, version)
+values ('11111111-1111-1111-1111-111111111111', '管理者', 1)
+on conflict (id) do update
+set group_name = excluded.group_name;
+
+insert into users (
+  id,
+  login_id,
+  password_hash,
+  user_name,
+  group_id,
+  is_active,
+  version
+)
+values (
+  '22222222-2222-2222-2222-222222222222',
+  'owner',
+  'temporary_hash_replace_me',
+  '初期管理者',
+  '11111111-1111-1111-1111-111111111111',
+  true,
+  1
+)
+on conflict (id) do update
+set
+  login_id = excluded.login_id,
+  user_name = excluded.user_name,
+  group_id = excluded.group_id,
+  is_active = excluded.is_active;
+
+insert into roles (menu_id, group_id, permission_level, version)
+values
+  ('cases', '11111111-1111-1111-1111-111111111111', 3, 1),
+  ('estimates', '11111111-1111-1111-1111-111111111111', 3, 1),
+  ('orders', '11111111-1111-1111-1111-111111111111', 3, 1),
+  ('estimate-lines', '11111111-1111-1111-1111-111111111111', 3, 1),
+  ('order-lines', '11111111-1111-1111-1111-111111111111', 3, 1),
+  ('manufacturing-jobs', '11111111-1111-1111-1111-111111111111', 3, 1),
+  ('diecut-specs', '11111111-1111-1111-1111-111111111111', 3, 1),
+  ('lc-specs', '11111111-1111-1111-1111-111111111111', 3, 1)
+on conflict (menu_id, group_id) do update
+set permission_level = excluded.permission_level;
+
+insert into tax_rates (tax_name, rate, rounding_method, taxation_type, active)
+values ('標準税率', 10.00, 2, 'taxable', true)
+on conflict do nothing;

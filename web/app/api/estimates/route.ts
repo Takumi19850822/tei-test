@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase";
-import { badRequest, serverError, toNumber } from "@/lib/api";
+import {
+  badRequest,
+  forbidden,
+  serverError,
+  toNumber,
+  unauthorized,
+} from "@/lib/api";
+import { ensureMenuAccess } from "@/lib/authz";
 
 export async function GET(request: Request) {
   try {
+    const access = await ensureMenuAccess(request, "estimates", 1);
+    if (!access.ok) {
+      if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
+      if (access.status === 403) return forbidden(access.message ?? "Forbidden");
+      return serverError("権限チェックに失敗しました。", access.message);
+    }
+
     const { searchParams } = new URL(request.url);
     const caseId = searchParams.get("caseId");
     const supabase = createSupabaseAdminClient();
@@ -32,6 +46,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const access = await ensureMenuAccess(request, "estimates", 2);
+    if (!access.ok) {
+      if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
+      if (access.status === 403) return forbidden(access.message ?? "Forbidden");
+      return serverError("権限チェックに失敗しました。", access.message);
+    }
+
     const body = await request.json();
     const caseId = String(body.caseId ?? "").trim();
     const subject = String(body.estimateSubject ?? "").trim();

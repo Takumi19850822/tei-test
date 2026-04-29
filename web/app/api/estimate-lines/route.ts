@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase";
-import { badRequest, serverError, toNumber } from "@/lib/api";
+import {
+  badRequest,
+  forbidden,
+  serverError,
+  toNumber,
+  unauthorized,
+} from "@/lib/api";
+import { ensureMenuAccess } from "@/lib/authz";
 import { computeLineTaxAmount, computeParentTotals } from "@/lib/totals";
 
 async function recalculateEstimateTotals(estimateId: string) {
@@ -31,6 +38,13 @@ async function recalculateEstimateTotals(estimateId: string) {
 
 export async function GET(request: Request) {
   try {
+    const access = await ensureMenuAccess(request, "estimateLines", 1);
+    if (!access.ok) {
+      if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
+      if (access.status === 403) return forbidden(access.message ?? "Forbidden");
+      return serverError("権限チェックに失敗しました。", access.message);
+    }
+
     const { searchParams } = new URL(request.url);
     const estimateId = String(searchParams.get("estimateId") ?? "").trim();
     if (!estimateId) {
@@ -57,6 +71,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const access = await ensureMenuAccess(request, "estimateLines", 2);
+    if (!access.ok) {
+      if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
+      if (access.status === 403) return forbidden(access.message ?? "Forbidden");
+      return serverError("権限チェックに失敗しました。", access.message);
+    }
+
     const body = await request.json();
     const estimateId = String(body.estimateId ?? "").trim();
     const itemName = String(body.itemName ?? "").trim();

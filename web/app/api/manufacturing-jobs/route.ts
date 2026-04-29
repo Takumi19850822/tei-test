@@ -1,37 +1,45 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase";
-import { badRequest, forbidden, serverError, unauthorized } from "@/lib/api";
+import {
+  badRequest,
+  forbidden,
+  serverError,
+  unauthorized,
+} from "@/lib/api";
 import { ensureMenuAccess } from "@/lib/authz";
 
 export async function GET(request: Request) {
   try {
-    const access = await ensureMenuAccess(request, "cases", 1);
+    const access = await ensureMenuAccess(request, "manufacturingJobs", 1);
     if (!access.ok) {
       if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
       if (access.status === 403) return forbidden(access.message ?? "Forbidden");
       return serverError("権限チェックに失敗しました。", access.message);
     }
 
+    const { searchParams } = new URL(request.url);
+    const orderId = String(searchParams.get("orderId") ?? "").trim();
     const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("cases")
+    let query = supabase
+      .from("manufacturing_jobs")
       .select("*")
       .order("created_at", { ascending: false });
+    if (orderId) query = query.eq("order_id", orderId);
 
+    const { data, error } = await query;
     if (error) {
-      return serverError("案件一覧の取得に失敗しました。", error.message);
+      return serverError("型工務の取得に失敗しました。", error.message);
     }
-
     return NextResponse.json({ ok: true, data: data ?? [] }, { status: 200 });
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown error";
-    return serverError("案件一覧の取得に失敗しました。", details);
+    return serverError("型工務の取得に失敗しました。", details);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const access = await ensureMenuAccess(request, "cases", 2);
+    const access = await ensureMenuAccess(request, "manufacturingJobs", 2);
     if (!access.ok) {
       if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
       if (access.status === 403) return forbidden(access.message ?? "Forbidden");
@@ -39,35 +47,25 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const caseName = String(body.caseName ?? "").trim();
-    const customerName = String(body.customerName ?? "").trim();
-    const status = String(body.status ?? "draft").trim();
-    const memo = String(body.memo ?? "").trim();
-
-    if (!caseName || !customerName) {
-      return badRequest("案件名と顧客名は必須です。");
-    }
+    const orderId = String(body.orderId ?? "").trim();
+    if (!orderId) return badRequest("orderIdは必須です。");
 
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
-      .from("cases")
+      .from("manufacturing_jobs")
       .insert({
-        case_name: caseName,
-        customer_name: customerName,
-        status,
-        memo: memo || null,
-        sales_user_id: access.actorUserId ?? null,
+        order_id: orderId,
+        mold_no: String(body.moldNo ?? "").trim() || null,
+        note: String(body.note ?? "").trim() || null,
       })
       .select("*")
       .single();
-
     if (error) {
-      return serverError("案件の作成に失敗しました。", error.message);
+      return serverError("型工務の作成に失敗しました。", error.message);
     }
-
     return NextResponse.json({ ok: true, data }, { status: 201 });
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown error";
-    return serverError("案件の作成に失敗しました。", details);
+    return serverError("型工務の作成に失敗しました。", details);
   }
 }

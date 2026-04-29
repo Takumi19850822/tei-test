@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase";
-import { badRequest, conflict, serverError, toNumber } from "@/lib/api";
+import {
+  badRequest,
+  conflict,
+  forbidden,
+  serverError,
+  toNumber,
+  unauthorized,
+} from "@/lib/api";
 import { computeLineTaxAmount, computeParentTotals } from "@/lib/totals";
+import { ensureMenuAccess } from "@/lib/authz";
 
 type Params = {
   params: Promise<{ id: string }>;
@@ -35,6 +43,13 @@ async function recalculateEstimateTotals(estimateId: string) {
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
+    const access = await ensureMenuAccess(request, "estimateLines", 2);
+    if (!access.ok) {
+      if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
+      if (access.status === 403) return forbidden(access.message ?? "Forbidden");
+      return serverError("権限チェックに失敗しました。", access.message);
+    }
+
     const { id } = await params;
     const body = await request.json();
     const expectedVersion = Number.parseInt(String(body.version), 10);
@@ -95,6 +110,13 @@ export async function PATCH(request: Request, { params }: Params) {
 
 export async function DELETE(_request: Request, { params }: Params) {
   try {
+    const access = await ensureMenuAccess(_request, "estimateLines", 3);
+    if (!access.ok) {
+      if (access.status === 401) return unauthorized(access.message ?? "Unauthorized");
+      if (access.status === 403) return forbidden(access.message ?? "Forbidden");
+      return serverError("権限チェックに失敗しました。", access.message);
+    }
+
     const { id } = await params;
     const supabase = createSupabaseAdminClient();
 

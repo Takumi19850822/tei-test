@@ -1,861 +1,523 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-type CaseRow = {
-  id: string;
-  case_name: string;
-  customer_name: string;
-  status: string;
-  memo: string | null;
-  version: number;
-};
+type CaseRow = { id: string; case_name: string; customer_name: string; status: string; version: number };
+type EstimateRow = { id: string; case_id: string; estimate_subject: string; estimate_date: string; status: string; subtotal: number; tax_amount: number; total_amount: number; version: number };
+type OrderRow = { id: string; case_id: string; estimate_id: string | null; order_title: string; order_date: string; status: string; amount_excl_tax: number; amount_incl_tax: number; version: number };
+type EstimateLine = { id: string; line_no: number; item_name: string; unit_price: number; quantity: number; tax_amount: number; version: number };
+type OrderLine = { id: string; line_no: number; item_name: string; unit_price: number; quantity: number; tax_amount: number; version: number };
+type Job = { id: string; order_id: string; mold_no: string | null; can_deliver: boolean; laser_done: boolean; molding_done: boolean; inspection_done: boolean; version: number };
+type DiecutSpec = { id: string; order_id: string; mold_no: string | null; machine_name: string | null; paper_name: string | null; paper_size: string | null; version: number };
+type LcSpec = { id: string; order_id: string; delivery_method: string | null; specification: string | null; print_surface: string | null; print_back: string | null; version: number };
 
-type EstimateRow = {
-  id: string;
-  case_id: string;
-  estimate_subject: string;
-  estimate_date: string;
-  status: string;
-  subtotal: number;
-  tax_amount: number;
-  total_amount: number;
-  note: string | null;
-  version: number;
-};
-
-type OrderRow = {
-  id: string;
-  case_id: string;
-  estimate_id: string | null;
-  order_title: string;
-  order_date: string;
-  status: string;
-  amount_excl_tax: number;
-  amount_incl_tax: number;
-  note: string | null;
-  version: number;
-};
-
-type EstimateLineRow = {
-  id: string;
-  estimate_id: string;
-  line_no: number;
-  item_name: string;
-  unit_price: number;
-  quantity: number;
-  unit: string | null;
-  tax_rate: number;
-  tax_amount: number;
-  note: string | null;
-  version: number;
-};
-
-type OrderLineRow = {
-  id: string;
-  order_id: string;
-  line_no: number;
-  item_name: string;
-  unit_price: number;
-  quantity: number;
-  unit: string | null;
-  tax_rate: number;
-  tax_amount: number;
-  note: string | null;
-  version: number;
-};
-
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
+async function api<T>(url: string, loginId: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers: { "Content-Type": "application/json", "x-login-id": loginId, ...(init?.headers ?? {}) },
   });
-
   const json = await response.json();
-  if (!response.ok || !json.ok) {
-    throw new Error(json.details ?? json.message ?? "API error");
-  }
-
+  if (!response.ok || !json.ok) throw new Error(json.details ?? json.message ?? "API error");
   return json.data as T;
 }
 
 export default function Home() {
+  const [menuOpen, setMenuOpen] = useState(true);
+  const [loginId, setLoginId] = useState("owner");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [estimateLines, setEstimateLines] = useState<EstimateLineRow[]>([]);
-  const [orderLines, setOrderLines] = useState<OrderLineRow[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>("");
-  const [selectedEstimateId, setSelectedEstimateId] = useState<string>("");
-  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
-  const [error, setError] = useState<string>("");
-  const [busy, setBusy] = useState(false);
+  const [estimateLines, setEstimateLines] = useState<EstimateLine[]>([]);
+  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [diecutSpecs, setDiecutSpecs] = useState<DiecutSpec[]>([]);
+  const [lcSpecs, setLcSpecs] = useState<LcSpec[]>([]);
+  const [caseId, setCaseId] = useState("");
+  const [estimateId, setEstimateId] = useState("");
+  const [orderId, setOrderId] = useState("");
+  const [caseName, setCaseName] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [estimateSubject, setEstimateSubject] = useState("");
+  const [orderTitle, setOrderTitle] = useState("");
+  const [lineItemName, setLineItemName] = useState("");
+  const [lineUnitPrice, setLineUnitPrice] = useState("0");
+  const [lineQuantity, setLineQuantity] = useState("1");
+  const [jobMoldNo, setJobMoldNo] = useState("");
+  const [diecutMoldNo, setDiecutMoldNo] = useState("");
+  const [diecutMachine, setDiecutMachine] = useState("");
+  const [lcDeliveryMethod, setLcDeliveryMethod] = useState("");
+  const [lcSpecText, setLcSpecText] = useState("");
+  const lastFRef = useRef<number>(0);
 
-  const [caseForm, setCaseForm] = useState({
-    caseName: "",
-    customerName: "",
-    status: "draft",
-    memo: "",
-  });
-  const [estimateForm, setEstimateForm] = useState({
-    estimateSubject: "",
-    estimateDate: new Date().toISOString().slice(0, 10),
-    status: "draft",
-    subtotal: "0",
-    taxAmount: "0",
-    totalAmount: "0",
-    note: "",
-  });
-  const [orderForm, setOrderForm] = useState({
-    orderTitle: "",
-    orderDate: new Date().toISOString().slice(0, 10),
-    status: "draft",
-    amountExclTax: "0",
-    amountInclTax: "0",
-    note: "",
-  });
-  const [estimateLineForm, setEstimateLineForm] = useState({
-    itemName: "",
-    unitPrice: "0",
-    quantity: "1",
-    taxRate: "10",
-  });
-  const [orderLineForm, setOrderLineForm] = useState({
-    itemName: "",
-    unitPrice: "0",
-    quantity: "1",
-    taxRate: "10",
-  });
-
-  const selectedCase = useMemo(
-    () => cases.find((item) => item.id === selectedCaseId) ?? null,
-    [cases, selectedCaseId],
-  );
   const selectedEstimate = useMemo(
-    () => estimates.find((item) => item.id === selectedEstimateId) ?? null,
-    [estimates, selectedEstimateId],
+    () => estimates.find((e) => e.id === estimateId),
+    [estimates, estimateId],
   );
-  const selectedOrder = useMemo(
-    () => orders.find((item) => item.id === selectedOrderId) ?? null,
-    [orders, selectedOrderId],
-  );
+  const selectedOrder = useMemo(() => orders.find((o) => o.id === orderId), [orders, orderId]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "f") return;
+      const now = Date.now();
+      if (now - lastFRef.current < 500) {
+        setMenuOpen((prev) => !prev);
+      }
+      lastFRef.current = now;
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   async function loadCases() {
-    const data = await api<CaseRow[]>("/api/cases");
+    const data = await api<CaseRow[]>("/api/cases", loginId);
     setCases(data);
-    if (!selectedCaseId && data.length > 0) {
-      setSelectedCaseId(data[0].id);
-    }
+    if (!caseId && data[0]) setCaseId(data[0].id);
+    if (caseId && !data.find((x) => x.id === caseId)) setCaseId(data[0]?.id ?? "");
   }
 
-  async function loadEstimates(caseId: string) {
-    if (!caseId) {
-      setEstimates([]);
-      setEstimateLines([]);
-      return;
-    }
-    const data = await api<EstimateRow[]>(`/api/estimates?caseId=${caseId}`);
+  async function loadEstimates(selectedCaseId: string) {
+    if (!selectedCaseId) return setEstimates([]);
+    const data = await api<EstimateRow[]>(`/api/estimates?caseId=${selectedCaseId}`, loginId);
     setEstimates(data);
-    if (data.length === 0) {
-      setSelectedEstimateId("");
-      setEstimateLines([]);
-    } else if (!data.some((item) => item.id === selectedEstimateId)) {
-      setSelectedEstimateId(data[0].id);
-    }
+    if (!estimateId && data[0]) setEstimateId(data[0].id);
+    if (estimateId && !data.find((x) => x.id === estimateId)) setEstimateId(data[0]?.id ?? "");
   }
 
-  async function loadOrders(caseId: string) {
-    if (!caseId) {
-      setOrders([]);
-      setOrderLines([]);
-      return;
-    }
-    const data = await api<OrderRow[]>(`/api/orders?caseId=${caseId}`);
+  async function loadOrders(selectedCaseId: string) {
+    if (!selectedCaseId) return setOrders([]);
+    const data = await api<OrderRow[]>(`/api/orders?caseId=${selectedCaseId}`, loginId);
     setOrders(data);
-    if (data.length === 0) {
-      setSelectedOrderId("");
-      setOrderLines([]);
-    } else if (!data.some((item) => item.id === selectedOrderId)) {
-      setSelectedOrderId(data[0].id);
-    }
+    if (!orderId && data[0]) setOrderId(data[0].id);
+    if (orderId && !data.find((x) => x.id === orderId)) setOrderId(data[0]?.id ?? "");
   }
 
-  async function loadEstimateLines(estimateId: string) {
-    if (!estimateId) {
-      setEstimateLines([]);
-      return;
-    }
-    const data = await api<EstimateLineRow[]>(
-      `/api/estimate-lines?estimateId=${estimateId}`,
+  async function loadEstimateLines(selectedEstimateId: string) {
+    if (!selectedEstimateId) return setEstimateLines([]);
+    const data = await api<EstimateLine[]>(
+      `/api/estimate-lines?estimateId=${selectedEstimateId}`,
+      loginId,
     );
     setEstimateLines(data);
   }
 
-  async function loadOrderLines(orderId: string) {
-    if (!orderId) {
-      setOrderLines([]);
-      return;
-    }
-    const data = await api<OrderLineRow[]>(`/api/order-lines?orderId=${orderId}`);
+  async function loadOrderLines(selectedOrderId: string) {
+    if (!selectedOrderId) return setOrderLines([]);
+    const data = await api<OrderLine[]>(`/api/order-lines?orderId=${selectedOrderId}`, loginId);
     setOrderLines(data);
   }
 
-  async function refreshAll(caseId: string) {
-    await Promise.all([loadCases(), loadEstimates(caseId), loadOrders(caseId)]);
+  async function loadJobs(selectedOrderId: string) {
+    if (!selectedOrderId) return setJobs([]);
+    const data = await api<Job[]>(`/api/manufacturing-jobs?orderId=${selectedOrderId}`, loginId);
+    setJobs(data);
+  }
+
+  async function loadSpecs(selectedOrderId: string) {
+    if (!selectedOrderId) {
+      setDiecutSpecs([]);
+      setLcSpecs([]);
+      return;
+    }
+    const [diecuts, lcs] = await Promise.all([
+      api<DiecutSpec[]>(`/api/diecut-specs?orderId=${selectedOrderId}`, loginId),
+      api<LcSpec[]>(`/api/lc-specs?orderId=${selectedOrderId}`, loginId),
+    ]);
+    setDiecutSpecs(diecuts);
+    setLcSpecs(lcs);
+  }
+
+  async function reloadAll() {
+    setBusy(true);
+    setError("");
+    try {
+      await loadCases();
+      await loadEstimates(caseId);
+      await loadOrders(caseId);
+      await loadEstimateLines(estimateId);
+      await loadOrderLines(orderId);
+      await loadJobs(orderId);
+      await loadSpecs(orderId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "読込に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
   }
 
   useEffect(() => {
-    setBusy(true);
-    refreshAll(selectedCaseId)
-      .catch((e) => setError(e instanceof Error ? e.message : "読込に失敗しました。"))
-      .finally(() => setBusy(false));
+    void reloadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loginId]);
 
   useEffect(() => {
-    loadEstimates(selectedCaseId).catch((e) =>
-      setError(e instanceof Error ? e.message : "見積の読込に失敗しました。"),
-    );
-    loadOrders(selectedCaseId).catch((e) =>
-      setError(e instanceof Error ? e.message : "受注の読込に失敗しました。"),
-    );
-  }, [selectedCaseId]);
+    void loadEstimates(caseId);
+    void loadOrders(caseId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId, loginId]);
 
   useEffect(() => {
-    loadEstimateLines(selectedEstimateId).catch((e) =>
-      setError(e instanceof Error ? e.message : "見積明細の読込に失敗しました。"),
-    );
-  }, [selectedEstimateId]);
+    void loadEstimateLines(estimateId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimateId, loginId]);
 
   useEffect(() => {
-    loadOrderLines(selectedOrderId).catch((e) =>
-      setError(e instanceof Error ? e.message : "受注明細の読込に失敗しました。"),
-    );
-  }, [selectedOrderId]);
+    void loadOrderLines(orderId);
+    void loadJobs(orderId);
+    void loadSpecs(orderId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, loginId]);
 
-  async function onCreateCase() {
+  async function createCase() {
     try {
-      setBusy(true);
-      await api<CaseRow>("/api/cases", {
+      await api("/api/cases", loginId, {
         method: "POST",
-        body: JSON.stringify(caseForm),
+        body: JSON.stringify({ caseName, customerName, status: "draft" }),
       });
-      setCaseForm({ caseName: "", customerName: "", status: "draft", memo: "" });
+      setCaseName("");
+      setCustomerName("");
       await loadCases();
     } catch (e) {
       setError(e instanceof Error ? e.message : "案件作成に失敗しました。");
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function onCreateEstimate() {
-    if (!selectedCaseId) return;
+  async function createEstimate() {
+    if (!caseId) return;
     try {
-      setBusy(true);
-      await api<EstimateRow>("/api/estimates", {
+      await api("/api/estimates", loginId, {
         method: "POST",
         body: JSON.stringify({
-          ...estimateForm,
-          caseId: selectedCaseId,
+          caseId,
+          estimateSubject,
+          estimateDate: new Date().toISOString().slice(0, 10),
+          subtotal: 0,
+          taxAmount: 0,
+          totalAmount: 0,
         }),
       });
-      setEstimateForm((prev) => ({ ...prev, estimateSubject: "", note: "" }));
-      await loadEstimates(selectedCaseId);
+      setEstimateSubject("");
+      await loadEstimates(caseId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "見積作成に失敗しました。");
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function onCreateOrder() {
-    if (!selectedCaseId) return;
+  async function createOrder() {
+    if (!caseId) return;
     try {
-      setBusy(true);
-      await api<OrderRow>("/api/orders", {
+      await api("/api/orders", loginId, {
         method: "POST",
         body: JSON.stringify({
-          ...orderForm,
-          caseId: selectedCaseId,
-          estimateId: selectedEstimateId || null,
+          caseId,
+          estimateId: estimateId || null,
+          orderTitle,
+          orderDate: new Date().toISOString().slice(0, 10),
+          amountExclTax: 0,
+          amountInclTax: 0,
         }),
       });
-      setOrderForm((prev) => ({ ...prev, orderTitle: "", note: "" }));
-      await loadOrders(selectedCaseId);
+      setOrderTitle("");
+      await loadOrders(caseId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "受注作成に失敗しました。");
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function onCreateEstimateLine() {
-    if (!selectedEstimateId) return;
+  async function addEstimateLine() {
+    if (!estimateId) return;
     try {
-      setBusy(true);
-      await api<EstimateLineRow>("/api/estimate-lines", {
+      await api("/api/estimate-lines", loginId, {
         method: "POST",
         body: JSON.stringify({
-          estimateId: selectedEstimateId,
+          estimateId,
           lineNo: estimateLines.length + 1,
-          itemName: estimateLineForm.itemName,
-          unitPrice: estimateLineForm.unitPrice,
-          quantity: estimateLineForm.quantity,
-          taxRate: estimateLineForm.taxRate,
+          itemName: lineItemName,
+          unitPrice: lineUnitPrice,
+          quantity: lineQuantity,
+          taxRate: 10,
         }),
       });
-      setEstimateLineForm({ itemName: "", unitPrice: "0", quantity: "1", taxRate: "10" });
-      await loadEstimateLines(selectedEstimateId);
-      await loadEstimates(selectedCaseId);
+      setLineItemName("");
+      await loadEstimateLines(estimateId);
+      await loadEstimates(caseId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "見積明細作成に失敗しました。");
-    } finally {
-      setBusy(false);
+      setError(e instanceof Error ? e.message : "見積明細追加に失敗しました。");
     }
   }
 
-  async function onDeleteEstimateLine(line: EstimateLineRow) {
+  async function addOrderLine() {
+    if (!orderId) return;
     try {
-      setBusy(true);
-      await api<{ id: string }>(`/api/estimate-lines/${line.id}`, {
-        method: "DELETE",
-      });
-      await loadEstimateLines(selectedEstimateId);
-      await loadEstimates(selectedCaseId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "見積明細削除に失敗しました。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onCreateOrderLine() {
-    if (!selectedOrderId) return;
-    try {
-      setBusy(true);
-      await api<OrderLineRow>("/api/order-lines", {
+      await api("/api/order-lines", loginId, {
         method: "POST",
         body: JSON.stringify({
-          orderId: selectedOrderId,
+          orderId,
           lineNo: orderLines.length + 1,
-          itemName: orderLineForm.itemName,
-          unitPrice: orderLineForm.unitPrice,
-          quantity: orderLineForm.quantity,
-          taxRate: orderLineForm.taxRate,
+          itemName: lineItemName,
+          unitPrice: lineUnitPrice,
+          quantity: lineQuantity,
+          taxRate: 10,
         }),
       });
-      setOrderLineForm({ itemName: "", unitPrice: "0", quantity: "1", taxRate: "10" });
-      await loadOrderLines(selectedOrderId);
-      await loadOrders(selectedCaseId);
+      setLineItemName("");
+      await loadOrderLines(orderId);
+      await loadOrders(caseId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "受注明細作成に失敗しました。");
-    } finally {
-      setBusy(false);
+      setError(e instanceof Error ? e.message : "受注明細追加に失敗しました。");
     }
   }
 
-  async function onDeleteOrderLine(line: OrderLineRow) {
+  async function createJob() {
+    if (!orderId) return;
     try {
-      setBusy(true);
-      await api<{ id: string }>(`/api/order-lines/${line.id}`, {
-        method: "DELETE",
+      await api("/api/manufacturing-jobs", loginId, {
+        method: "POST",
+        body: JSON.stringify({ orderId, moldNo: jobMoldNo }),
       });
-      await loadOrderLines(selectedOrderId);
-      await loadOrders(selectedCaseId);
+      setJobMoldNo("");
+      await loadJobs(orderId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "受注明細削除に失敗しました。");
-    } finally {
-      setBusy(false);
+      setError(e instanceof Error ? e.message : "型工務作成に失敗しました。");
     }
   }
 
-  async function moveCaseStatus(row: CaseRow) {
-    const nextStatus = row.status === "draft" ? "in_progress" : "done";
+  async function createDiecutSpec() {
+    if (!orderId) return;
     try {
-      const data = await api<CaseRow>(`/api/cases/${row.id}`, {
-        method: "PATCH",
+      await api("/api/diecut-specs", loginId, {
+        method: "POST",
         body: JSON.stringify({
-          status: nextStatus,
-          version: row.version,
+          orderId,
+          moldNo: diecutMoldNo,
+          machineName: diecutMachine,
         }),
       });
-      setCases((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+      setDiecutMoldNo("");
+      setDiecutMachine("");
+      await loadSpecs(orderId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "案件更新に失敗しました。");
+      setError(e instanceof Error ? e.message : "抜き型仕様作成に失敗しました。");
     }
   }
 
-  async function moveEstimateStatus(row: EstimateRow) {
-    const nextStatus = row.status === "draft" ? "in_progress" : "approved";
+  async function createLcSpec() {
+    if (!orderId) return;
     try {
-      const data = await api<EstimateRow>(`/api/estimates/${row.id}`, {
-        method: "PATCH",
+      await api("/api/lc-specs", loginId, {
+        method: "POST",
         body: JSON.stringify({
-          status: nextStatus,
-          version: row.version,
+          orderId,
+          deliveryMethod: lcDeliveryMethod,
+          specification: lcSpecText,
         }),
       });
-      setEstimates((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+      setLcDeliveryMethod("");
+      setLcSpecText("");
+      await loadSpecs(orderId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "見積更新に失敗しました。");
-    }
-  }
-
-  async function moveOrderStatus(row: OrderRow) {
-    const nextStatus = row.status === "draft" ? "ordered" : "invoiced";
-    try {
-      const data = await api<OrderRow>(`/api/orders/${row.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          status: nextStatus,
-          version: row.version,
-        }),
-      });
-      setOrders((prev) => prev.map((item) => (item.id === data.id ? data : item)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "受注更新に失敗しました。");
+      setError(e instanceof Error ? e.message : "LC仕様作成に失敗しました。");
     }
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl p-6 text-sm text-slate-900">
-      <h1 className="mb-4 text-2xl font-bold">案件管理 本番相当PoC</h1>
-      <p className="mb-6 text-slate-600">
-        案件 → 見積 → 受注の主幹フローをレビューできる最小実装です。
-      </p>
-
-      {error ? (
-        <div className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-4">
-        <section className="rounded border bg-white p-4 xl:col-span-1">
-          <h2 className="mb-3 text-lg font-semibold">案件</h2>
-          <div className="mb-3 grid gap-2">
-            <input
-              className="rounded border px-2 py-1"
-              placeholder="案件名"
-              value={caseForm.caseName}
-              onChange={(e) =>
-                setCaseForm((prev) => ({ ...prev, caseName: e.target.value }))
-              }
-            />
-            <input
-              className="rounded border px-2 py-1"
-              placeholder="顧客名"
-              value={caseForm.customerName}
-              onChange={(e) =>
-                setCaseForm((prev) => ({ ...prev, customerName: e.target.value }))
-              }
-            />
-            <button
-              className="rounded bg-blue-700 px-3 py-1 text-white disabled:opacity-50"
-              onClick={onCreateCase}
-              disabled={busy}
-            >
-              案件を作成
+    <div className="app-shell">
+      <aside className={`left-menu ${menuOpen ? "open" : "closed"}`}>
+        <h2>メニュー</h2>
+        <div className="menu-tip">Fキーを素早く2回で開閉</div>
+        <a href="#cases">案件</a>
+        <a href="#estimates">見積</a>
+        <a href="#orders">受注</a>
+        <a href="#manufacturing">型工務</a>
+        <a href="#specs">抜き型/LC仕様</a>
+      </aside>
+      <main className="main-content">
+        <header className="page-header">
+          <h2>業務システム 本番相当レビュー</h2>
+          <div className="login-box">
+            <span>login_id</span>
+            <input value={loginId} onChange={(e) => setLoginId(e.target.value)} />
+            <button className="btn btn-positive" onClick={() => void reloadAll()} disabled={busy}>
+              再読込
             </button>
           </div>
-          <div className="space-y-2">
-            {cases.map((row) => (
-              <button
-                key={row.id}
-                className={`w-full rounded border p-2 text-left ${
-                  selectedCaseId === row.id ? "border-blue-600 bg-blue-50" : ""
-                }`}
-                onClick={() => setSelectedCaseId(row.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">{row.case_name}</span>
-                  <span className="text-xs text-slate-500">v{row.version}</span>
-                </div>
-                <div className="text-xs text-slate-600">{row.customer_name}</div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                    {row.status}
-                  </span>
-                  <span
-                    className="text-xs text-blue-700 underline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void moveCaseStatus(row);
-                    }}
-                  >
-                    状態更新
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
+        </header>
+        {error ? <div className="error-box">{error}</div> : null}
 
-        <section className="rounded border bg-white p-4 xl:col-span-1">
-          <h2 className="mb-3 text-lg font-semibold">見積</h2>
-          <p className="mb-2 text-xs text-slate-600">
-            対象案件: {selectedCase ? selectedCase.case_name : "未選択"}
-          </p>
-          <div className="mb-3 grid gap-2">
-            <input
-              className="rounded border px-2 py-1"
-              placeholder="見積件名"
-              value={estimateForm.estimateSubject}
-              onChange={(e) =>
-                setEstimateForm((prev) => ({
-                  ...prev,
-                  estimateSubject: e.target.value,
-                }))
-              }
-            />
-            <input
-              className="rounded border px-2 py-1"
-              type="date"
-              value={estimateForm.estimateDate}
-              onChange={(e) =>
-                setEstimateForm((prev) => ({ ...prev, estimateDate: e.target.value }))
-              }
-            />
-            <div className="grid grid-cols-3 gap-2">
-              <input
-                className="rounded border px-2 py-1"
-                type="number"
-                placeholder="税抜"
-                value={estimateForm.subtotal}
-                onChange={(e) =>
-                  setEstimateForm((prev) => ({ ...prev, subtotal: e.target.value }))
-                }
-              />
-              <input
-                className="rounded border px-2 py-1"
-                type="number"
-                placeholder="税額"
-                value={estimateForm.taxAmount}
-                onChange={(e) =>
-                  setEstimateForm((prev) => ({ ...prev, taxAmount: e.target.value }))
-                }
-              />
-              <input
-                className="rounded border px-2 py-1"
-                type="number"
-                placeholder="税込"
-                value={estimateForm.totalAmount}
-                onChange={(e) =>
-                  setEstimateForm((prev) => ({ ...prev, totalAmount: e.target.value }))
-                }
-              />
-            </div>
-            <button
-              className="rounded bg-green-700 px-3 py-1 text-white disabled:opacity-50"
-              onClick={onCreateEstimate}
-              disabled={busy || !selectedCaseId}
-            >
-              見積を作成
+        <section id="cases" className="panel">
+          <h2>案件</h2>
+          <div className="form-row">
+            <input placeholder="案件名" value={caseName} onChange={(e) => setCaseName(e.target.value)} />
+            <input placeholder="顧客名" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+            <button className="btn btn-positive" onClick={() => void createCase()} disabled={busy}>
+              新規案件
             </button>
           </div>
-          <div className="space-y-2">
-            {estimates.map((row) => (
-              <button
-                key={row.id}
-                className={`w-full rounded border p-2 text-left ${
-                  selectedEstimateId === row.id ? "border-green-600 bg-green-50" : ""
-                }`}
-                onClick={() => setSelectedEstimateId(row.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">{row.estimate_subject}</span>
-                  <span className="text-xs text-slate-500">v{row.version}</span>
-                </div>
-                <div className="text-xs text-slate-600">
-                  {row.estimate_date} / 税込 {Number(row.total_amount).toLocaleString()}
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                    {row.status}
-                  </span>
-                  <span
-                    className="text-xs text-blue-700 underline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void moveEstimateStatus(row);
-                    }}
-                  >
-                    状態更新
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 border-t pt-3">
-            <h3 className="mb-2 text-sm font-semibold">見積明細</h3>
-            <p className="mb-2 text-xs text-slate-600">
-              選択見積: {selectedEstimate ? selectedEstimate.estimate_subject : "未選択"}
-            </p>
-            <div className="mb-2 grid gap-2">
-              <input
-                className="rounded border px-2 py-1"
-                placeholder="品名"
-                value={estimateLineForm.itemName}
-                onChange={(e) =>
-                  setEstimateLineForm((prev) => ({ ...prev, itemName: e.target.value }))
-                }
-              />
-              <div className="grid grid-cols-3 gap-2">
-                <input
-                  className="rounded border px-2 py-1"
-                  type="number"
-                  placeholder="単価"
-                  value={estimateLineForm.unitPrice}
-                  onChange={(e) =>
-                    setEstimateLineForm((prev) => ({
-                      ...prev,
-                      unitPrice: e.target.value,
-                    }))
-                  }
-                />
-                <input
-                  className="rounded border px-2 py-1"
-                  type="number"
-                  placeholder="数量"
-                  value={estimateLineForm.quantity}
-                  onChange={(e) =>
-                    setEstimateLineForm((prev) => ({
-                      ...prev,
-                      quantity: e.target.value,
-                    }))
-                  }
-                />
-                <input
-                  className="rounded border px-2 py-1"
-                  type="number"
-                  placeholder="税率"
-                  value={estimateLineForm.taxRate}
-                  onChange={(e) =>
-                    setEstimateLineForm((prev) => ({
-                      ...prev,
-                      taxRate: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <button
-                className="rounded bg-slate-800 px-3 py-1 text-white disabled:opacity-50"
-                disabled={busy || !selectedEstimateId}
-                onClick={onCreateEstimateLine}
-              >
-                明細を追加
-              </button>
-            </div>
-            <div className="max-h-44 space-y-1 overflow-y-auto rounded border p-2">
-              {estimateLines.map((line) => (
-                <div key={line.id} className="flex items-center justify-between text-xs">
-                  <span>
-                    {line.line_no}. {line.item_name} ({line.quantity} x{" "}
-                    {Number(line.unit_price).toLocaleString()})
-                  </span>
-                  <button
-                    className="text-red-600 underline"
-                    onClick={() => void onDeleteEstimateLine(line)}
-                  >
-                    削除
-                  </button>
-                </div>
+          <table className="spec-table">
+            <thead>
+              <tr>
+                <th>案件名</th><th>顧客</th><th>状態</th><th>版</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cases.map((row) => (
+                <tr key={row.id} onClick={() => setCaseId(row.id)} className={row.id === caseId ? "active-row" : ""}>
+                  <td>{row.case_name}</td><td>{row.customer_name}</td><td>{row.status}</td><td>{row.version}</td>
+                </tr>
               ))}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </section>
 
-        <section className="rounded border bg-white p-4 xl:col-span-1">
-          <h2 className="mb-3 text-lg font-semibold">受注</h2>
-          <p className="mb-2 text-xs text-slate-600">
-            紐付見積: {selectedEstimateId ? "選択済み" : "未選択"}
-          </p>
-          <div className="mb-3 grid gap-2">
-            <input
-              className="rounded border px-2 py-1"
-              placeholder="受注件名"
-              value={orderForm.orderTitle}
-              onChange={(e) =>
-                setOrderForm((prev) => ({ ...prev, orderTitle: e.target.value }))
-              }
-            />
-            <input
-              className="rounded border px-2 py-1"
-              type="date"
-              value={orderForm.orderDate}
-              onChange={(e) =>
-                setOrderForm((prev) => ({ ...prev, orderDate: e.target.value }))
-              }
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                className="rounded border px-2 py-1"
-                type="number"
-                placeholder="税抜"
-                value={orderForm.amountExclTax}
-                onChange={(e) =>
-                  setOrderForm((prev) => ({ ...prev, amountExclTax: e.target.value }))
-                }
-              />
-              <input
-                className="rounded border px-2 py-1"
-                type="number"
-                placeholder="税込"
-                value={orderForm.amountInclTax}
-                onChange={(e) =>
-                  setOrderForm((prev) => ({ ...prev, amountInclTax: e.target.value }))
-                }
-              />
-            </div>
-            <button
-              className="rounded bg-purple-700 px-3 py-1 text-white disabled:opacity-50"
-              onClick={onCreateOrder}
-              disabled={busy || !selectedCaseId}
-            >
-              受注を作成
+        <section id="estimates" className="panel">
+          <h2>見積</h2>
+          <div className="form-row">
+            <input placeholder="見積件名" value={estimateSubject} onChange={(e) => setEstimateSubject(e.target.value)} />
+            <button className="btn btn-positive" onClick={() => void createEstimate()} disabled={!caseId || busy}>
+              新規見積
             </button>
           </div>
-          <div className="space-y-2">
-            {orders.map((row) => (
-              <button
-                key={row.id}
-                className={`w-full rounded border p-2 text-left ${
-                  selectedOrderId === row.id ? "border-purple-600 bg-purple-50" : ""
-                }`}
-                onClick={() => setSelectedOrderId(row.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">{row.order_title}</span>
-                  <span className="text-xs text-slate-500">v{row.version}</span>
-                </div>
-                <div className="text-xs text-slate-600">
-                  {row.order_date} / 税込{" "}
-                  {Number(row.amount_incl_tax).toLocaleString()}
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                    {row.status}
-                  </span>
-                  <button
-                    className="text-xs text-blue-700 underline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void moveOrderStatus(row);
-                    }}
-                  >
-                    状態更新
-                  </button>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 border-t pt-3">
-            <h3 className="mb-2 text-sm font-semibold">受注明細</h3>
-            <p className="mb-2 text-xs text-slate-600">
-              選択受注: {selectedOrder ? selectedOrder.order_title : "未選択"}
-            </p>
-            <div className="mb-2 grid gap-2">
-              <input
-                className="rounded border px-2 py-1"
-                placeholder="品名"
-                value={orderLineForm.itemName}
-                onChange={(e) =>
-                  setOrderLineForm((prev) => ({ ...prev, itemName: e.target.value }))
-                }
-              />
-              <div className="grid grid-cols-3 gap-2">
-                <input
-                  className="rounded border px-2 py-1"
-                  type="number"
-                  placeholder="単価"
-                  value={orderLineForm.unitPrice}
-                  onChange={(e) =>
-                    setOrderLineForm((prev) => ({
-                      ...prev,
-                      unitPrice: e.target.value,
-                    }))
-                  }
-                />
-                <input
-                  className="rounded border px-2 py-1"
-                  type="number"
-                  placeholder="数量"
-                  value={orderLineForm.quantity}
-                  onChange={(e) =>
-                    setOrderLineForm((prev) => ({
-                      ...prev,
-                      quantity: e.target.value,
-                    }))
-                  }
-                />
-                <input
-                  className="rounded border px-2 py-1"
-                  type="number"
-                  placeholder="税率"
-                  value={orderLineForm.taxRate}
-                  onChange={(e) =>
-                    setOrderLineForm((prev) => ({
-                      ...prev,
-                      taxRate: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <button
-                className="rounded bg-slate-800 px-3 py-1 text-white disabled:opacity-50"
-                disabled={busy || !selectedOrderId}
-                onClick={onCreateOrderLine}
-              >
-                明細を追加
-              </button>
-            </div>
-            <div className="max-h-44 space-y-1 overflow-y-auto rounded border p-2">
-              {orderLines.map((line) => (
-                <div key={line.id} className="flex items-center justify-between text-xs">
-                  <span>
-                    {line.line_no}. {line.item_name} ({line.quantity} x{" "}
-                    {Number(line.unit_price).toLocaleString()})
-                  </span>
-                  <button
-                    className="text-red-600 underline"
-                    onClick={() => void onDeleteOrderLine(line)}
-                  >
-                    削除
-                  </button>
-                </div>
+          <table className="spec-table">
+            <thead><tr><th>見積件名</th><th>日付</th><th>税込</th><th>版</th></tr></thead>
+            <tbody>
+              {estimates.map((row) => (
+                <tr key={row.id} onClick={() => setEstimateId(row.id)} className={row.id === estimateId ? "active-row" : ""}>
+                  <td>{row.estimate_subject}</td><td>{row.estimate_date}</td><td>{row.total_amount.toLocaleString()}</td><td>{row.version}</td>
+                </tr>
               ))}
-            </div>
+            </tbody>
+          </table>
+          <div className="form-row">
+            <input placeholder="品名" value={lineItemName} onChange={(e) => setLineItemName(e.target.value)} />
+            <input placeholder="単価" value={lineUnitPrice} onChange={(e) => setLineUnitPrice(e.target.value)} />
+            <input placeholder="数量" value={lineQuantity} onChange={(e) => setLineQuantity(e.target.value)} />
+            <button className="btn btn-positive" onClick={() => void addEstimateLine()} disabled={!estimateId || busy}>
+              明細追加
+            </button>
+          </div>
+          <table className="spec-table">
+            <thead><tr><th>No</th><th>品名</th><th>単価</th><th>数量</th><th>税額</th></tr></thead>
+            <tbody>
+              {estimateLines.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.line_no}</td><td>{row.item_name}</td><td>{row.unit_price}</td><td>{row.quantity}</td><td>{row.tax_amount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="total-box">
+            合計: 税抜 {selectedEstimate?.subtotal?.toLocaleString() ?? 0} / 税額 {selectedEstimate?.tax_amount?.toLocaleString() ?? 0} / 税込 {selectedEstimate?.total_amount?.toLocaleString() ?? 0}
           </div>
         </section>
 
-        <section className="rounded border bg-white p-4 xl:col-span-1">
-          <h2 className="mb-3 text-lg font-semibold">集計確認</h2>
-          <div className="space-y-2 text-xs">
-            <div className="rounded border p-2">
-              <p className="font-semibold">案件</p>
-              <p>{selectedCase?.case_name ?? "-"}</p>
-              <p>{selectedCase?.customer_name ?? "-"}</p>
+        <section id="orders" className="panel">
+          <h2>受注</h2>
+          <div className="form-row">
+            <input placeholder="受注件名" value={orderTitle} onChange={(e) => setOrderTitle(e.target.value)} />
+            <button className="btn btn-positive" onClick={() => void createOrder()} disabled={!caseId || busy}>
+              新規受注
+            </button>
+          </div>
+          <table className="spec-table">
+            <thead><tr><th>受注件名</th><th>日付</th><th>税込</th><th>版</th></tr></thead>
+            <tbody>
+              {orders.map((row) => (
+                <tr key={row.id} onClick={() => setOrderId(row.id)} className={row.id === orderId ? "active-row" : ""}>
+                  <td>{row.order_title}</td><td>{row.order_date}</td><td>{row.amount_incl_tax.toLocaleString()}</td><td>{row.version}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="form-row">
+            <input placeholder="品名" value={lineItemName} onChange={(e) => setLineItemName(e.target.value)} />
+            <input placeholder="単価" value={lineUnitPrice} onChange={(e) => setLineUnitPrice(e.target.value)} />
+            <input placeholder="数量" value={lineQuantity} onChange={(e) => setLineQuantity(e.target.value)} />
+            <button className="btn btn-positive" onClick={() => void addOrderLine()} disabled={!orderId || busy}>
+              受注明細追加
+            </button>
+          </div>
+          <table className="spec-table">
+            <thead><tr><th>No</th><th>品名</th><th>単価</th><th>数量</th><th>税額</th></tr></thead>
+            <tbody>
+              {orderLines.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.line_no}</td><td>{row.item_name}</td><td>{row.unit_price}</td><td>{row.quantity}</td><td>{row.tax_amount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="total-box">
+            合計: 税抜 {selectedOrder?.amount_excl_tax?.toLocaleString() ?? 0} / 税込 {selectedOrder?.amount_incl_tax?.toLocaleString() ?? 0}
+          </div>
+        </section>
+
+        <section id="manufacturing" className="panel">
+          <h2>型工務</h2>
+          <div className="form-row">
+            <input placeholder="型No" value={jobMoldNo} onChange={(e) => setJobMoldNo(e.target.value)} />
+            <button className="btn btn-positive" onClick={() => void createJob()} disabled={!orderId || busy}>
+              工務追加
+            </button>
+          </div>
+          <table className="spec-table">
+            <thead><tr><th>型No</th><th>レーザー</th><th>型製作</th><th>検査</th><th>納品可</th><th>版</th></tr></thead>
+            <tbody>
+              {jobs.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.mold_no ?? "-"}</td><td>{row.laser_done ? "完" : "未"}</td><td>{row.molding_done ? "完" : "未"}</td><td>{row.inspection_done ? "完" : "未"}</td><td>{row.can_deliver ? "可" : "不可"}</td><td>{row.version}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section id="specs" className="panel">
+          <h2>抜き型/LC仕様</h2>
+          <div className="grid-two">
+            <div>
+              <h3>抜き型仕様</h3>
+              <div className="form-row">
+                <input placeholder="型No" value={diecutMoldNo} onChange={(e) => setDiecutMoldNo(e.target.value)} />
+                <input placeholder="機種" value={diecutMachine} onChange={(e) => setDiecutMachine(e.target.value)} />
+                <button className="btn btn-positive" onClick={() => void createDiecutSpec()} disabled={!orderId || busy}>
+                  追加
+                </button>
+              </div>
+              <table className="spec-table">
+                <thead><tr><th>型No</th><th>機種</th><th>用紙</th><th>版</th></tr></thead>
+                <tbody>
+                  {diecutSpecs.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.mold_no ?? "-"}</td><td>{row.machine_name ?? "-"}</td><td>{row.paper_name ?? "-"}</td><td>{row.version}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="rounded border p-2">
-              <p className="font-semibold">見積合計</p>
-              <p>税抜: {Number(selectedEstimate?.subtotal ?? 0).toLocaleString()}</p>
-              <p>税額: {Number(selectedEstimate?.tax_amount ?? 0).toLocaleString()}</p>
-              <p>税込: {Number(selectedEstimate?.total_amount ?? 0).toLocaleString()}</p>
-            </div>
-            <div className="rounded border p-2">
-              <p className="font-semibold">受注合計</p>
-              <p>税抜: {Number(selectedOrder?.amount_excl_tax ?? 0).toLocaleString()}</p>
-              <p>税込: {Number(selectedOrder?.amount_incl_tax ?? 0).toLocaleString()}</p>
+            <div>
+              <h3>LC仕様</h3>
+              <div className="form-row">
+                <input placeholder="納品方法" value={lcDeliveryMethod} onChange={(e) => setLcDeliveryMethod(e.target.value)} />
+                <input placeholder="仕様" value={lcSpecText} onChange={(e) => setLcSpecText(e.target.value)} />
+                <button className="btn btn-positive" onClick={() => void createLcSpec()} disabled={!orderId || busy}>
+                  追加
+                </button>
+              </div>
+              <table className="spec-table">
+                <thead><tr><th>納品方法</th><th>仕様</th><th>表面印刷</th><th>版</th></tr></thead>
+                <tbody>
+                  {lcSpecs.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.delivery_method ?? "-"}</td><td>{row.specification ?? "-"}</td><td>{row.print_surface ?? "-"}</td><td>{row.version}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
