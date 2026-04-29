@@ -37,6 +37,34 @@ type OrderRow = {
   version: number;
 };
 
+type EstimateLineRow = {
+  id: string;
+  estimate_id: string;
+  line_no: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  unit: string | null;
+  tax_rate: number;
+  tax_amount: number;
+  note: string | null;
+  version: number;
+};
+
+type OrderLineRow = {
+  id: string;
+  order_id: string;
+  line_no: number;
+  item_name: string;
+  unit_price: number;
+  quantity: number;
+  unit: string | null;
+  tax_rate: number;
+  tax_amount: number;
+  note: string | null;
+  version: number;
+};
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -58,8 +86,11 @@ export default function Home() {
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [estimateLines, setEstimateLines] = useState<EstimateLineRow[]>([]);
+  const [orderLines, setOrderLines] = useState<OrderLineRow[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>("");
   const [selectedEstimateId, setSelectedEstimateId] = useState<string>("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
@@ -86,10 +117,30 @@ export default function Home() {
     amountInclTax: "0",
     note: "",
   });
+  const [estimateLineForm, setEstimateLineForm] = useState({
+    itemName: "",
+    unitPrice: "0",
+    quantity: "1",
+    taxRate: "10",
+  });
+  const [orderLineForm, setOrderLineForm] = useState({
+    itemName: "",
+    unitPrice: "0",
+    quantity: "1",
+    taxRate: "10",
+  });
 
   const selectedCase = useMemo(
     () => cases.find((item) => item.id === selectedCaseId) ?? null,
     [cases, selectedCaseId],
+  );
+  const selectedEstimate = useMemo(
+    () => estimates.find((item) => item.id === selectedEstimateId) ?? null,
+    [estimates, selectedEstimateId],
+  );
+  const selectedOrder = useMemo(
+    () => orders.find((item) => item.id === selectedOrderId) ?? null,
+    [orders, selectedOrderId],
   );
 
   async function loadCases() {
@@ -103,11 +154,15 @@ export default function Home() {
   async function loadEstimates(caseId: string) {
     if (!caseId) {
       setEstimates([]);
+      setEstimateLines([]);
       return;
     }
     const data = await api<EstimateRow[]>(`/api/estimates?caseId=${caseId}`);
     setEstimates(data);
-    if (!selectedEstimateId && data.length > 0) {
+    if (data.length === 0) {
+      setSelectedEstimateId("");
+      setEstimateLines([]);
+    } else if (!data.some((item) => item.id === selectedEstimateId)) {
       setSelectedEstimateId(data[0].id);
     }
   }
@@ -115,10 +170,37 @@ export default function Home() {
   async function loadOrders(caseId: string) {
     if (!caseId) {
       setOrders([]);
+      setOrderLines([]);
       return;
     }
     const data = await api<OrderRow[]>(`/api/orders?caseId=${caseId}`);
     setOrders(data);
+    if (data.length === 0) {
+      setSelectedOrderId("");
+      setOrderLines([]);
+    } else if (!data.some((item) => item.id === selectedOrderId)) {
+      setSelectedOrderId(data[0].id);
+    }
+  }
+
+  async function loadEstimateLines(estimateId: string) {
+    if (!estimateId) {
+      setEstimateLines([]);
+      return;
+    }
+    const data = await api<EstimateLineRow[]>(
+      `/api/estimate-lines?estimateId=${estimateId}`,
+    );
+    setEstimateLines(data);
+  }
+
+  async function loadOrderLines(orderId: string) {
+    if (!orderId) {
+      setOrderLines([]);
+      return;
+    }
+    const data = await api<OrderLineRow[]>(`/api/order-lines?orderId=${orderId}`);
+    setOrderLines(data);
   }
 
   async function refreshAll(caseId: string) {
@@ -141,6 +223,18 @@ export default function Home() {
       setError(e instanceof Error ? e.message : "受注の読込に失敗しました。"),
     );
   }, [selectedCaseId]);
+
+  useEffect(() => {
+    loadEstimateLines(selectedEstimateId).catch((e) =>
+      setError(e instanceof Error ? e.message : "見積明細の読込に失敗しました。"),
+    );
+  }, [selectedEstimateId]);
+
+  useEffect(() => {
+    loadOrderLines(selectedOrderId).catch((e) =>
+      setError(e instanceof Error ? e.message : "受注明細の読込に失敗しました。"),
+    );
+  }, [selectedOrderId]);
 
   async function onCreateCase() {
     try {
@@ -194,6 +288,86 @@ export default function Home() {
       await loadOrders(selectedCaseId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "受注作成に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCreateEstimateLine() {
+    if (!selectedEstimateId) return;
+    try {
+      setBusy(true);
+      await api<EstimateLineRow>("/api/estimate-lines", {
+        method: "POST",
+        body: JSON.stringify({
+          estimateId: selectedEstimateId,
+          lineNo: estimateLines.length + 1,
+          itemName: estimateLineForm.itemName,
+          unitPrice: estimateLineForm.unitPrice,
+          quantity: estimateLineForm.quantity,
+          taxRate: estimateLineForm.taxRate,
+        }),
+      });
+      setEstimateLineForm({ itemName: "", unitPrice: "0", quantity: "1", taxRate: "10" });
+      await loadEstimateLines(selectedEstimateId);
+      await loadEstimates(selectedCaseId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "見積明細作成に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteEstimateLine(line: EstimateLineRow) {
+    try {
+      setBusy(true);
+      await api<{ id: string }>(`/api/estimate-lines/${line.id}`, {
+        method: "DELETE",
+      });
+      await loadEstimateLines(selectedEstimateId);
+      await loadEstimates(selectedCaseId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "見積明細削除に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCreateOrderLine() {
+    if (!selectedOrderId) return;
+    try {
+      setBusy(true);
+      await api<OrderLineRow>("/api/order-lines", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId: selectedOrderId,
+          lineNo: orderLines.length + 1,
+          itemName: orderLineForm.itemName,
+          unitPrice: orderLineForm.unitPrice,
+          quantity: orderLineForm.quantity,
+          taxRate: orderLineForm.taxRate,
+        }),
+      });
+      setOrderLineForm({ itemName: "", unitPrice: "0", quantity: "1", taxRate: "10" });
+      await loadOrderLines(selectedOrderId);
+      await loadOrders(selectedCaseId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "受注明細作成に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteOrderLine(line: OrderLineRow) {
+    try {
+      setBusy(true);
+      await api<{ id: string }>(`/api/order-lines/${line.id}`, {
+        method: "DELETE",
+      });
+      await loadOrderLines(selectedOrderId);
+      await loadOrders(selectedCaseId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "受注明細削除に失敗しました。");
     } finally {
       setBusy(false);
     }
@@ -260,8 +434,8 @@ export default function Home() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded border bg-white p-4">
+      <div className="grid gap-4 xl:grid-cols-4">
+        <section className="rounded border bg-white p-4 xl:col-span-1">
           <h2 className="mb-3 text-lg font-semibold">案件</h2>
           <div className="mb-3 grid gap-2">
             <input
@@ -321,7 +495,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="rounded border bg-white p-4">
+        <section className="rounded border bg-white p-4 xl:col-span-1">
           <h2 className="mb-3 text-lg font-semibold">見積</h2>
           <p className="mb-2 text-xs text-slate-600">
             対象案件: {selectedCase ? selectedCase.case_name : "未選択"}
@@ -416,9 +590,87 @@ export default function Home() {
               </button>
             ))}
           </div>
+
+          <div className="mt-4 border-t pt-3">
+            <h3 className="mb-2 text-sm font-semibold">見積明細</h3>
+            <p className="mb-2 text-xs text-slate-600">
+              選択見積: {selectedEstimate ? selectedEstimate.estimate_subject : "未選択"}
+            </p>
+            <div className="mb-2 grid gap-2">
+              <input
+                className="rounded border px-2 py-1"
+                placeholder="品名"
+                value={estimateLineForm.itemName}
+                onChange={(e) =>
+                  setEstimateLineForm((prev) => ({ ...prev, itemName: e.target.value }))
+                }
+              />
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  className="rounded border px-2 py-1"
+                  type="number"
+                  placeholder="単価"
+                  value={estimateLineForm.unitPrice}
+                  onChange={(e) =>
+                    setEstimateLineForm((prev) => ({
+                      ...prev,
+                      unitPrice: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded border px-2 py-1"
+                  type="number"
+                  placeholder="数量"
+                  value={estimateLineForm.quantity}
+                  onChange={(e) =>
+                    setEstimateLineForm((prev) => ({
+                      ...prev,
+                      quantity: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded border px-2 py-1"
+                  type="number"
+                  placeholder="税率"
+                  value={estimateLineForm.taxRate}
+                  onChange={(e) =>
+                    setEstimateLineForm((prev) => ({
+                      ...prev,
+                      taxRate: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <button
+                className="rounded bg-slate-800 px-3 py-1 text-white disabled:opacity-50"
+                disabled={busy || !selectedEstimateId}
+                onClick={onCreateEstimateLine}
+              >
+                明細を追加
+              </button>
+            </div>
+            <div className="max-h-44 space-y-1 overflow-y-auto rounded border p-2">
+              {estimateLines.map((line) => (
+                <div key={line.id} className="flex items-center justify-between text-xs">
+                  <span>
+                    {line.line_no}. {line.item_name} ({line.quantity} x{" "}
+                    {Number(line.unit_price).toLocaleString()})
+                  </span>
+                  <button
+                    className="text-red-600 underline"
+                    onClick={() => void onDeleteEstimateLine(line)}
+                  >
+                    削除
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
-        <section className="rounded border bg-white p-4">
+        <section className="rounded border bg-white p-4 xl:col-span-1">
           <h2 className="mb-3 text-lg font-semibold">受注</h2>
           <p className="mb-2 text-xs text-slate-600">
             紐付見積: {selectedEstimateId ? "選択済み" : "未選択"}
@@ -470,7 +722,13 @@ export default function Home() {
           </div>
           <div className="space-y-2">
             {orders.map((row) => (
-              <div key={row.id} className="rounded border p-2">
+              <button
+                key={row.id}
+                className={`w-full rounded border p-2 text-left ${
+                  selectedOrderId === row.id ? "border-purple-600 bg-purple-50" : ""
+                }`}
+                onClick={() => setSelectedOrderId(row.id)}
+              >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">{row.order_title}</span>
                   <span className="text-xs text-slate-500">v{row.version}</span>
@@ -485,13 +743,116 @@ export default function Home() {
                   </span>
                   <button
                     className="text-xs text-blue-700 underline"
-                    onClick={() => void moveOrderStatus(row)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void moveOrderStatus(row);
+                    }}
                   >
                     状態更新
                   </button>
                 </div>
-              </div>
+              </button>
             ))}
+          </div>
+
+          <div className="mt-4 border-t pt-3">
+            <h3 className="mb-2 text-sm font-semibold">受注明細</h3>
+            <p className="mb-2 text-xs text-slate-600">
+              選択受注: {selectedOrder ? selectedOrder.order_title : "未選択"}
+            </p>
+            <div className="mb-2 grid gap-2">
+              <input
+                className="rounded border px-2 py-1"
+                placeholder="品名"
+                value={orderLineForm.itemName}
+                onChange={(e) =>
+                  setOrderLineForm((prev) => ({ ...prev, itemName: e.target.value }))
+                }
+              />
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  className="rounded border px-2 py-1"
+                  type="number"
+                  placeholder="単価"
+                  value={orderLineForm.unitPrice}
+                  onChange={(e) =>
+                    setOrderLineForm((prev) => ({
+                      ...prev,
+                      unitPrice: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded border px-2 py-1"
+                  type="number"
+                  placeholder="数量"
+                  value={orderLineForm.quantity}
+                  onChange={(e) =>
+                    setOrderLineForm((prev) => ({
+                      ...prev,
+                      quantity: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded border px-2 py-1"
+                  type="number"
+                  placeholder="税率"
+                  value={orderLineForm.taxRate}
+                  onChange={(e) =>
+                    setOrderLineForm((prev) => ({
+                      ...prev,
+                      taxRate: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <button
+                className="rounded bg-slate-800 px-3 py-1 text-white disabled:opacity-50"
+                disabled={busy || !selectedOrderId}
+                onClick={onCreateOrderLine}
+              >
+                明細を追加
+              </button>
+            </div>
+            <div className="max-h-44 space-y-1 overflow-y-auto rounded border p-2">
+              {orderLines.map((line) => (
+                <div key={line.id} className="flex items-center justify-between text-xs">
+                  <span>
+                    {line.line_no}. {line.item_name} ({line.quantity} x{" "}
+                    {Number(line.unit_price).toLocaleString()})
+                  </span>
+                  <button
+                    className="text-red-600 underline"
+                    onClick={() => void onDeleteOrderLine(line)}
+                  >
+                    削除
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded border bg-white p-4 xl:col-span-1">
+          <h2 className="mb-3 text-lg font-semibold">集計確認</h2>
+          <div className="space-y-2 text-xs">
+            <div className="rounded border p-2">
+              <p className="font-semibold">案件</p>
+              <p>{selectedCase?.case_name ?? "-"}</p>
+              <p>{selectedCase?.customer_name ?? "-"}</p>
+            </div>
+            <div className="rounded border p-2">
+              <p className="font-semibold">見積合計</p>
+              <p>税抜: {Number(selectedEstimate?.subtotal ?? 0).toLocaleString()}</p>
+              <p>税額: {Number(selectedEstimate?.tax_amount ?? 0).toLocaleString()}</p>
+              <p>税込: {Number(selectedEstimate?.total_amount ?? 0).toLocaleString()}</p>
+            </div>
+            <div className="rounded border p-2">
+              <p className="font-semibold">受注合計</p>
+              <p>税抜: {Number(selectedOrder?.amount_excl_tax ?? 0).toLocaleString()}</p>
+              <p>税込: {Number(selectedOrder?.amount_incl_tax ?? 0).toLocaleString()}</p>
+            </div>
           </div>
         </section>
       </div>
