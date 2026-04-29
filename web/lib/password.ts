@@ -1,5 +1,8 @@
 /** DB の password_hash。プレースホルダ・レガシー sha256:、推奨 pbkdf2: */
 
+import { pbkdf2Async } from "@noble/hashes/pbkdf2.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+
 export const PLACEHOLDER_PASSWORD_HASH = "temporary_hash_replace_me";
 
 const PBKDF2_ITER = 210_000;
@@ -28,26 +31,17 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
+/**
+ * PBKDF2-HMAC-SHA256。Web Crypto（特に Cloudflare Workers）では iterations が 10 万回で打ち切られるため、
+ * 同じアルゴリズムで制限のない実装を使う。
+ */
 async function pbkdf2Derive(
   password: string,
   salt: Uint8Array,
   iterations: number,
   lengthBytes: number,
 ): Promise<Uint8Array> {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: salt as BufferSource, iterations, hash: "SHA-256" },
-    keyMaterial,
-    lengthBytes * 8,
-  );
-  return new Uint8Array(bits);
+  return pbkdf2Async(sha256, password, salt, { c: iterations, dkLen: lengthBytes });
 }
 
 /** 新規保存・更新時に使用（ソルト付き PBKDF2） */
