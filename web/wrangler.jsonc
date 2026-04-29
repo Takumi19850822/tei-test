@@ -2,6 +2,10 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "tei-test",
+	"keep_vars": true,
+	"vars": {
+		"NEXT_PUBLIC_SUPABASE_URL": "https://ytebmhimojzxebtfclrc.supabase.co"
+	},
 	"compatibility_date": "2026-04-26",
 	"compatibility_flags": [
 		"nodejs_compat",
