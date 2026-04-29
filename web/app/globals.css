@@ -831,47 +831,116 @@ a.btn {
 
 .detail-form--case {
   gap: 12px;
+  --case-form-label-w: 11rem;
 }
 
 .detail-form--case > label.case-field-full {
   display: grid;
-  grid-template-columns: 11rem minmax(0, 1fr);
+  grid-template-columns: var(--case-form-label-w) minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   font-size: 13px;
 }
 
-.detail-form--case .case-form-row3 {
-  display: grid;
+/* 営業担当・案件種別・状態 */
+.detail-form--case .case-form-row3.case-form-row3--case-meta {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 16px;
 }
 
-.detail-form--case .case-form-row3 label {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+.detail-form--case .case-customer-block {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  min-width: 0;
+}
+
+.detail-form--case .case-customer-hint-banner {
+  margin: 0;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.detail-form--case .case-form-row3 {
+  display: grid;
+  gap: 12px 16px;
+  align-items: center;
+}
+
+/* 顧客行: 1列目をやや広く、2・3列目は同等に確保（極端な fr 比で潰さない） */
+.detail-form--case .case-form-row3.case-form-row3--customer-line {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* 案件フォームの3列行: 1列目のみ --case-form-label-w、2列目以降はラベルを入力に密着 */
+.detail-form--case .case-form-row3 > label.case-field-std:first-child {
+  grid-template-columns: var(--case-form-label-w) minmax(0, 1fr);
+  gap: 12px;
   align-items: center;
   font-size: 13px;
   min-width: 0;
 }
 
+.detail-form--case .case-form-row3 > label.case-field-std:not(:first-child) {
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  min-width: 0;
+}
+
+/* 顧客名の入力エリアを広く（1列目の内側トラック） */
+.detail-form--case .case-form-row3.case-form-row3--customer-line > label.case-field-std:first-child {
+  grid-template-columns: var(--case-form-label-w) minmax(42ch, 1fr);
+}
+
+.detail-form--case .case-form-row3 > label.case-field-std select,
+.detail-form--case .case-form-row3 > label.case-field-std input,
+.detail-form--case .case-form-row3 > label.case-field-std .customer-search-wrap {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-form--case .case-select-disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
+
 .detail-form--case .case-field-std {
   display: grid;
-  grid-template-columns: 11rem minmax(0, 1fr);
+  grid-template-columns: var(--case-form-label-w) minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   font-size: 13px;
 }
 
-.detail-form--case label textarea {
-  min-height: 90px;
-  resize: vertical;
+.detail-form--case .case-form-save-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.detail-form--case .case-form-save-row .btn {
+  flex: 0 0 auto;
 }
 
 @media (max-width: 1100px) {
   .detail-form--case .case-form-row3 {
     grid-template-columns: 1fr;
+  }
+
+  .detail-form--case > label.case-field-full {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .detail-form--case .case-form-row3 > label.case-field-std:first-child,
+  .detail-form--case .case-form-row3 > label.case-field-std:not(:first-child) {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
   }
 }
 
@@ -928,6 +997,10 @@ a.btn {
 }
 
 .customer-search-dropdown button:hover {
+  background: var(--accent-muted);
+}
+
+.customer-search-dropdown button.is-active {
   background: var(--accent-muted);
 }
 

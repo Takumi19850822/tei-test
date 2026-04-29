@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Cloudflare / OpenNext ローカル用（中身は .env.local と揃える。コミットしない）
+.dev.vars
+
 # vercel
 .vercel
 

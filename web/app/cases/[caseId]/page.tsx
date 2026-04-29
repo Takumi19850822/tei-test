@@ -3,15 +3,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import {
-  applyCustomerPick,
-  CaseCustomerNameField,
-  CaseCustomerRelations,
-} from "@/app/_components/case-customer-fields";
+import { applyCustomerPick, CaseCustomerRow } from "@/app/_components/case-customer-fields";
 import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { useListPagination } from "@/hooks/useListPagination";
+import { normalizeCaseStatus } from "@/lib/case-status";
 
 type CaseRow = {
   id: string;
@@ -126,7 +123,10 @@ export default function CaseDetailPage() {
     void (async () => {
       try {
         const row = await clientApi(`/api/cases/${memoizedCaseId}`);
-        setCaseRow(row);
+        setCaseRow({
+          ...row,
+          status: normalizeCaseStatus(String(row.status ?? "draft")),
+        });
       } catch (e) {
         setError(e instanceof Error ? e.message : "案件の取得に失敗しました");
       }
@@ -177,7 +177,10 @@ export default function CaseDetailPage() {
           version: caseRow.version,
         }),
       });
-      setCaseRow(updated);
+      setCaseRow({
+        ...updated,
+        status: normalizeCaseStatus(String(updated.status ?? "draft")),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "更新失敗");
     } finally {
@@ -215,8 +218,8 @@ export default function CaseDetailPage() {
                 onChange={(e) => setCaseRow({ ...caseRow, case_name: e.target.value })}
               />
             </label>
-            <div className="case-form-row3">
-              <label>
+            <div className="case-form-row3 case-form-row3--case-meta">
+              <label className="case-field-std">
                 営業担当
                 <select
                   value={caseRow.sales_user_id ?? ""}
@@ -237,7 +240,7 @@ export default function CaseDetailPage() {
                     ))}
                 </select>
               </label>
-              <label>
+              <label className="case-field-std">
                 案件種別
                 <select
                   value={caseRow.case_type_id ?? ""}
@@ -256,56 +259,67 @@ export default function CaseDetailPage() {
                   ))}
                 </select>
               </label>
-              <label>
-                顧客名
-                <CaseCustomerNameField
-                  value={caseRow.customer_name}
-                  onChange={(v) =>
-                    setCaseRow({
-                      ...caseRow,
-                      customer_name: v,
-                      customer_id: null,
-                    })
-                  }
-                  onPick={(c) => {
-                    const p = applyCustomerPick(c);
-                    setCaseRow({
-                      ...caseRow,
-                      customer_name: p.customerName,
-                      customer_id: p.customerId,
-                      customer_branch_id: null,
-                      customer_contact_id: null,
-                    });
-                  }}
-                  linkedCustomerId={caseRow.customer_id}
-                />
+              <label className="case-field-std">
+                状態
+                <select
+                  value={caseRow.status}
+                  onChange={(e) => setCaseRow({ ...caseRow, status: e.target.value })}
+                >
+                  <option value="draft">下書き</option>
+                  <option value="active">アクティブ</option>
+                  <option value="closed">終了</option>
+                </select>
               </label>
             </div>
-            <CaseCustomerRelations
+            <CaseCustomerRow
               key={`${caseRow.id}-${caseRow.customer_id ?? "none"}`}
+              customerName={caseRow.customer_name}
+              onCustomerNameChange={(v) =>
+                setCaseRow((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    customer_name: v,
+                    ...(v.trim() === ""
+                      ? {
+                          customer_id: null,
+                          customer_branch_id: null,
+                          customer_contact_id: null,
+                        }
+                      : {}),
+                  };
+                })
+              }
+              onCustomerPick={(c) => {
+                const p = applyCustomerPick(c);
+                setCaseRow((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    customer_name: p.customerName,
+                    customer_id: p.customerId,
+                    customer_branch_id: null,
+                    customer_contact_id: null,
+                  };
+                });
+              }}
               customerId={caseRow.customer_id}
               branchId={caseRow.customer_branch_id}
               contactId={caseRow.customer_contact_id}
               onBranchChange={(v) =>
-                setCaseRow({
-                  ...caseRow,
-                  customer_branch_id: v,
-                  customer_contact_id: null,
+                setCaseRow((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    customer_branch_id: v,
+                    customer_contact_id: null,
+                  };
                 })
               }
-              onContactChange={(v) => setCaseRow({ ...caseRow, customer_contact_id: v })}
+              onContactChange={(v) =>
+                setCaseRow((prev) => (prev ? { ...prev, customer_contact_id: v } : prev))
+              }
             />
-            <label className="case-field-std">
-              状態
-              <select
-                value={caseRow.status}
-                onChange={(e) => setCaseRow({ ...caseRow, status: e.target.value })}
-              >
-                <option value="draft">draft</option>
-                <option value="in_progress">in_progress</option>
-                <option value="done">done</option>
-              </select>
-            </label>
             <label className="case-field-std">
               メモ
               <textarea
@@ -313,9 +327,11 @@ export default function CaseDetailPage() {
                 onChange={(e) => setCaseRow({ ...caseRow, memo: e.target.value })}
               />
             </label>
-            <button className="btn btn-positive" disabled={saving} onClick={() => void saveCase()}>
-              保存
-            </button>
+            <div className="case-form-save-row">
+              <button type="button" className="btn btn-positive" disabled={saving} onClick={() => void saveCase()}>
+                保存
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

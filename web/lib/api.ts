@@ -19,8 +19,15 @@ export function conflict(message: string) {
   return NextResponse.json({ ok: false, message }, { status: 409 });
 }
 
-export function unauthorized(message: string) {
-  return NextResponse.json({ ok: false, message }, { status: 401 });
+export function unauthorized(message: string, details?: string) {
+  return NextResponse.json(
+    {
+      ok: false,
+      message,
+      ...(details ? { details } : {}),
+    },
+    { status: 401 },
+  );
 }
 
 export function forbidden(message: string) {

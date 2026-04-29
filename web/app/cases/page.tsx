@@ -9,6 +9,7 @@ import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
 import { useListPagination } from "@/hooks/useListPagination";
+import { caseStatusLabel } from "@/lib/case-status";
 
 type CaseRow = {
   id: string;
@@ -29,7 +30,7 @@ export default function CasesPage() {
     () =>
       rows.filter((row) =>
         rowMatchesSearch(
-          [row.case_name, row.customer_name, row.status, String(row.version)],
+          [row.case_name, row.customer_name, row.status, caseStatusLabel(row.status), String(row.version)],
           listQuery,
         ),
       ),
@@ -90,7 +91,7 @@ export default function CasesPage() {
                 </td>
                 <td>{row.case_name}</td>
                 <td>{row.customer_name}</td>
-                <td>{row.status}</td>
+                <td>{caseStatusLabel(row.status)}</td>
                 <td>{row.version}</td>
               </tr>
             ))}

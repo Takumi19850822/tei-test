@@ -3,11 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  applyCustomerPick,
-  CaseCustomerNameField,
-  CaseCustomerRelations,
-} from "@/app/_components/case-customer-fields";
+import { applyCustomerPick, CaseCustomerRow } from "@/app/_components/case-customer-fields";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 
@@ -28,6 +24,7 @@ export default function NewCasePage() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [salesUserId, setSalesUserId] = useState("");
   const [caseTypeId, setCaseTypeId] = useState("");
+  const [status, setStatus] = useState("draft");
   const [customerBranchId, setCustomerBranchId] = useState<string | null>(null);
   const [customerContactId, setCustomerContactId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -61,7 +58,7 @@ export default function NewCasePage() {
         body: JSON.stringify({
           caseName: caseName,
           customerName: customerName,
-          status: "draft",
+          status,
           memo: "",
           salesUserId: salesUserId || undefined,
           caseTypeId: caseTypeId || undefined,
@@ -92,8 +89,8 @@ export default function NewCasePage() {
           案件名
           <input value={caseName} onChange={(e) => setCaseName(e.target.value)} />
         </label>
-        <div className="case-form-row3">
-          <label>
+        <div className="case-form-row3 case-form-row3--case-meta">
+          <label className="case-field-std">
             営業担当
             <select value={salesUserId} onChange={(e) => setSalesUserId(e.target.value)}>
               <option value="">（ログインユーザを既定にする）</option>
@@ -106,7 +103,7 @@ export default function NewCasePage() {
                 ))}
             </select>
           </label>
-          <label>
+          <label className="case-field-std">
             案件種別
             <select value={caseTypeId} onChange={(e) => setCaseTypeId(e.target.value)}>
               <option value="">（未設定）</option>
@@ -117,35 +114,46 @@ export default function NewCasePage() {
               ))}
             </select>
           </label>
-          <label>
-            顧客名
-            <CaseCustomerNameField
-              value={customerName}
-              onChange={(v) => {
-                setCustomerName(v);
-                setCustomerId(null);
-              }}
-              onPick={(c) => {
-                const p = applyCustomerPick(c);
-                setCustomerName(p.customerName);
-                setCustomerId(p.customerId);
-                setCustomerBranchId(null);
-                setCustomerContactId(null);
-              }}
-              linkedCustomerId={customerId}
-            />
+          <label className="case-field-std">
+            状態
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="draft">下書き</option>
+              <option value="active">アクティブ</option>
+              <option value="closed">終了</option>
+            </select>
           </label>
         </div>
-        <CaseCustomerRelations
+        <CaseCustomerRow
+          customerName={customerName}
+          onCustomerNameChange={(v) => {
+            setCustomerName(v);
+            if (v.trim() === "") {
+              setCustomerId(null);
+              setCustomerBranchId(null);
+              setCustomerContactId(null);
+            }
+          }}
+          onCustomerPick={(c) => {
+            const p = applyCustomerPick(c);
+            setCustomerName(p.customerName);
+            setCustomerId(p.customerId);
+            setCustomerBranchId(null);
+            setCustomerContactId(null);
+          }}
           customerId={customerId}
           branchId={customerBranchId}
           contactId={customerContactId}
-          onBranchChange={setCustomerBranchId}
+          onBranchChange={(v) => {
+            setCustomerBranchId(v);
+            setCustomerContactId(null);
+          }}
           onContactChange={setCustomerContactId}
         />
-        <button className="btn btn-positive" disabled={saving} onClick={() => void submit()}>
-          保存
-        </button>
+        <div className="case-form-save-row">
+          <button type="button" className="btn btn-positive" disabled={saving} onClick={() => void submit()}>
+            保存
+          </button>
+        </div>
       </div>
     </section>
   );

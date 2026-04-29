@@ -33,12 +33,23 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ loginId, password }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        details?: string;
+        data?: { loginId?: string; userName?: string };
+      };
       if (!res.ok || !json.ok) {
-        throw new Error(json.message ?? json.details ?? "ログインに失敗しました");
+        const parts = [json.message, json.details].filter(
+          (s): s is string => typeof s === "string" && s.trim().length > 0,
+        );
+        throw new Error(parts.length ? parts.join(" — ") : "ログインに失敗しました");
       }
-      const id = json.data.loginId as string;
-      const name = String(json.data.userName ?? "");
+      const id = String(json.data?.loginId ?? "");
+      if (!id) {
+        throw new Error("ログイン応答が不正です。");
+      }
+      const name = String(json.data?.userName ?? "");
       if (typeof window !== "undefined" && name) {
         localStorage.setItem(USER_NAME_KEY, name);
       }

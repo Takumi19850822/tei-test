@@ -6,32 +6,6 @@ values ('11111111-1111-1111-1111-111111111111', '管理者', 1)
 on conflict (id) do update
 set group_name = excluded.group_name;
 
-insert into users (
-  id,
-  login_id,
-  password_hash,
-  user_name,
-  group_id,
-  is_active,
-  version
-)
-values (
-  '22222222-2222-2222-2222-222222222222',
-  'owner',
-  'sha256:4c1029697ee358715d3a14a2add817c4b01651440de808371f78165ac90dc581',
-  'Admin',
-  '11111111-1111-1111-1111-111111111111',
-  true,
-  1
-)
-on conflict (id) do update
-set
-  login_id = excluded.login_id,
-  user_name = excluded.user_name,
-  group_id = excluded.group_id,
-  is_active = excluded.is_active,
-  password_hash = excluded.password_hash;
-
 insert into roles (menu_id, group_id, permission_level, version)
 values
   ('cases', '11111111-1111-1111-1111-111111111111', 3, 1),

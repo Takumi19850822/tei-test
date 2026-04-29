@@ -125,7 +125,54 @@ export async function GET(request: Request) {
       return da.localeCompare(db, "ja");
     });
 
-    return NextResponse.json({ ok: true, data: list.slice(0, 30) }, { status: 200 });
+    const seenIds = new Set<string>();
+    const unique: { id: string; organization_name: string; department_name: string | null }[] = [];
+    for (const row of list) {
+      if (seenIds.has(row.id)) continue;
+      seenIds.add(row.id);
+      unique.push(row);
+      if (unique.length >= 30) break;
+    }
+
+    const ids = unique.map((u) => u.id);
+    if (ids.length === 0) {
+      return NextResponse.json({ ok: true, data: [] }, { status: 200 });
+    }
+
+    const { data: branchRows, error: errBrAgg } = await supabase
+      .from("customer_branches")
+      .select("customer_id, department_name")
+      .in("customer_id", ids);
+
+    if (errBrAgg) {
+      return serverError("顧客検索に失敗しました。", errBrAgg.message);
+    }
+
+    const branchAgg = new Map<string, { count: number; dept: string | null }>();
+    for (const r of branchRows ?? []) {
+      const cid = String(r.customer_id);
+      const prev = branchAgg.get(cid);
+      const d = r.department_name != null ? String(r.department_name).trim() || null : null;
+      if (!prev) {
+        branchAgg.set(cid, { count: 1, dept: d });
+      } else {
+        prev.count += 1;
+        prev.dept = null;
+      }
+    }
+
+    const enriched = unique.map((u) => {
+      const a = branchAgg.get(u.id);
+      const deptOnlyWhenSingle =
+        a?.count === 1 ? (a.dept && a.dept.length > 0 ? a.dept : null) : null;
+      return {
+        id: u.id,
+        organization_name: u.organization_name,
+        department_name: deptOnlyWhenSingle,
+      };
+    });
+
+    return NextResponse.json({ ok: true, data: enriched }, { status: 200 });
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown error";
     return serverError("顧客検索に失敗しました。", details);
