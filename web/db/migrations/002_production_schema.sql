@@ -77,6 +77,7 @@
   create table if not exists customer_branches (
     id uuid primary key default gen_random_uuid(),
     customer_id uuid not null,
+    department_name text,
     postal_code text,
     prefecture text,
     city text,
@@ -142,6 +143,7 @@
   );
 
   alter table cases
+    add column if not exists customer_id uuid,
     add column if not exists customer_branch_id uuid,
     add column if not exists customer_contact_id uuid,
     add column if not exists case_type_id uuid,

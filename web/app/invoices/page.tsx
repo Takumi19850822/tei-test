@@ -5,9 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { ScreenToolbar } from "@/app/_components/screen-toolbar";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
+import { useListPagination } from "@/hooks/useListPagination";
 
 type OrderRow = { id: string; order_title: string; amount_incl_tax: number };
 type Invoice = {
@@ -46,6 +48,16 @@ function InvoicesPageInner() {
       ),
     [rows, listQuery],
   );
+  const listResetKey = `${orderId}\n${listQuery}`;
+  const {
+    pageItems: pageRows,
+    page,
+    totalPages,
+    total,
+    rangeStart,
+    rangeEnd,
+    setPage,
+  } = useListPagination(filteredRows, listResetKey);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === selectedId) ?? null,
@@ -55,7 +67,7 @@ function InvoicesPageInner() {
   const orderIdFromUrl = searchParams.get("orderId");
 
   async function loadOrders() {
-    const data = await clientApi<OrderRow[]>(loginId, "/api/orders");
+    const data = await clientApi("/api/orders");
     setOrders(data);
     setOrderId((prev) => {
       if (orderIdFromUrl && data.some((o) => o.id === orderIdFromUrl)) {
@@ -68,7 +80,7 @@ function InvoicesPageInner() {
 
   async function loadInvoices(selectedOrderId: string) {
     if (!selectedOrderId) return setRows([]);
-    const data = await clientApi<Invoice[]>(loginId, `/api/invoices?orderId=${selectedOrderId}`);
+    const data = await clientApi(`/api/invoices?orderId=${selectedOrderId}`);
     setRows(data);
     if (selectedId && !data.some((row) => row.id === selectedId)) {
       setSelectedId("");
@@ -121,7 +133,7 @@ function InvoicesPageInner() {
           className="btn btn-positive"
           href={orderId ? `/invoices/new?orderId=${orderId}` : "/invoices/new"}
         >
-          新規作成
+          新規追加
         </Link>
       </div>
       {selected ? (
@@ -149,24 +161,42 @@ function InvoicesPageInner() {
         </div>
       ) : (
         <div className="list-panel">
-          <table className="spec-table">
-            <thead><tr><th>請求日</th><th>入金期日</th><th>請求額</th><th>版</th><th>詳細</th></tr></thead>
+          <table className="spec-table spec-table--list">
+            <thead>
+              <tr>
+                <th className="col-actions">操作</th>
+                <th>請求日</th>
+                <th>入金期日</th>
+                <th>請求額</th>
+                <th>版</th>
+              </tr>
+            </thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button type="button" className="btn btn-detail btn-sm" onClick={() => setSelectedId(row.id)}>
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.invoice_date}</td>
                   <td>{row.due_date ?? "-"}</td>
                   <td>{row.total_amount.toLocaleString()}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button className="btn btn-detail" onClick={() => setSelectedId(row.id)}>
-                      詳細
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalCount={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            setPage={setPage}
+          />
         </div>
       )}
     </section>

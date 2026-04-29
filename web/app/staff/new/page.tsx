@@ -27,7 +27,7 @@ export default function NewStaffPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void clientApi<UserGroupRow[]>(loginId, "/api/user-groups")
+    void clientApi("/api/user-groups")
       .then(setGroups)
       .catch((e) => setError(e instanceof Error ? e.message : "グループ読込失敗"));
   }, [loginId]);
@@ -37,7 +37,7 @@ export default function NewStaffPage() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/staff", {
+      await clientApi("/api/staff", {
         method: "POST",
         body: JSON.stringify({
           loginId: loginIdField.trim(),

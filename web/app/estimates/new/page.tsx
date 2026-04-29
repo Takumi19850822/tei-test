@@ -21,7 +21,7 @@ function NewEstimateInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<CaseRow[]>(loginId, "/api/cases");
+        const data = await clientApi("/api/cases");
         setCases(data);
         const q = searchParams.get("caseId");
         if (q && data.some((c) => c.id === q)) {
@@ -40,7 +40,7 @@ function NewEstimateInner() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/estimates", {
+      await clientApi("/api/estimates", {
         method: "POST",
         body: JSON.stringify({
           caseId,

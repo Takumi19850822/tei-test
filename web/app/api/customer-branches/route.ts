@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       .from("customer_branches")
       .insert({
         customer_id: customerId,
+        department_name: String(body.departmentName ?? "").trim() || null,
         postal_code: String(body.postalCode ?? "").trim() || null,
         prefecture: String(body.prefecture ?? "").trim() || null,
         city: String(body.city ?? "").trim() || null,

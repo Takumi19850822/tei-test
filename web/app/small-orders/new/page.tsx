@@ -21,7 +21,7 @@ function NewSmallOrderInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<CaseRow[]>(loginId, "/api/cases");
+        const data = await clientApi("/api/cases");
         setCases(data);
         const q = searchParams.get("caseId");
         if (q && data.some((c) => c.id === q)) {
@@ -40,7 +40,7 @@ function NewSmallOrderInner() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/small-orders", {
+      await clientApi("/api/small-orders", {
         method: "POST",
         body: JSON.stringify({ caseId, itemName: itemName.trim() }),
       });

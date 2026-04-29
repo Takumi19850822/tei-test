@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ScreenToolbar } from "@/app/_components/screen-toolbar";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
+import { useListPagination } from "@/hooks/useListPagination";
 
 function jsonPretty(v: unknown): string {
   try {
@@ -123,6 +125,25 @@ function SpecsPageInner() {
       ),
     [lcs, listQuery],
   );
+  const listResetKey = `${orderId}\n${listQuery}`;
+  const {
+    pageItems: diecutPageRows,
+    page: diecutPage,
+    totalPages: diecutTotalPages,
+    total: diecutTotal,
+    rangeStart: diecutRangeStart,
+    rangeEnd: diecutRangeEnd,
+    setPage: setDiecutPage,
+  } = useListPagination(filteredDiecuts, `diecut-${listResetKey}`);
+  const {
+    pageItems: lcPageRows,
+    page: lcPage,
+    totalPages: lcTotalPages,
+    total: lcTotal,
+    rangeStart: lcRangeStart,
+    rangeEnd: lcRangeEnd,
+    setPage: setLcPage,
+  } = useListPagination(filteredLcs, `lc-${listResetKey}`);
 
   const selectedDiecut = useMemo(
     () => diecuts.find((d) => d.id === selectedDiecutId) ?? null,
@@ -137,7 +158,7 @@ function SpecsPageInner() {
     const url = caseIdFromUrl
       ? `/api/orders?caseId=${caseIdFromUrl}`
       : "/api/orders";
-    const data = await clientApi<OrderRow[]>(loginId, url);
+    const data = await clientApi(url);
     setOrders(data);
     setOrderId((prev) => {
       if (orderIdFromUrl && data.some((o) => o.id === orderIdFromUrl)) {
@@ -155,8 +176,8 @@ function SpecsPageInner() {
       return;
     }
     const [diecutData, lcData] = await Promise.all([
-      clientApi<DiecutSpec[]>(loginId, `/api/diecut-specs?orderId=${selectedOrderId}`),
-      clientApi<LcSpec[]>(loginId, `/api/lc-specs?orderId=${selectedOrderId}`),
+      clientApi(`/api/diecut-specs?orderId=${selectedOrderId}`),
+      clientApi(`/api/lc-specs?orderId=${selectedOrderId}`),
     ]);
     setDiecuts(diecutData);
     setLcs(lcData);
@@ -196,7 +217,7 @@ function SpecsPageInner() {
 
   async function saveDiecut() {
     if (!selectedDiecut) return;
-    await clientApi(loginId, `/api/diecut-specs/${selectedDiecut.id}`, {
+    await clientApi(`/api/diecut-specs/${selectedDiecut.id}`, {
       method: "PATCH",
       body: JSON.stringify({
         version: selectedDiecut.version,
@@ -224,7 +245,7 @@ function SpecsPageInner() {
 
   async function saveLc() {
     if (!selectedLc) return;
-    await clientApi(loginId, `/api/lc-specs/${selectedLc.id}`, {
+    await clientApi(`/api/lc-specs/${selectedLc.id}`, {
       method: "PATCH",
       body: JSON.stringify({
         version: selectedLc.version,
@@ -285,43 +306,53 @@ function SpecsPageInner() {
               : `/specs/new${caseIdFromUrl ? `?caseId=${caseIdFromUrl}` : ""}`
           }
         >
-          新規作成
+          新規追加
         </Link>
       </div>
 
       <div className="grid-two">
         <div className="panel">
           <h3>抜き型仕様</h3>
-          <table className="spec-table">
+          <table className="spec-table spec-table--list">
             <thead>
               <tr>
+                <th className="col-actions">操作</th>
                 <th>型No</th>
                 <th>機種</th>
                 <th>用紙</th>
                 <th>版</th>
-                <th>選択</th>
               </tr>
             </thead>
             <tbody>
-              {filteredDiecuts.map((row) => (
+              {diecutPageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button
+                        type="button"
+                        className="btn btn-detail btn-sm"
+                        onClick={() => setSelectedDiecutId(row.id)}
+                      >
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.mold_no ?? "-"}</td>
                   <td>{row.machine_name ?? "-"}</td>
                   <td>{row.paper_name ?? "-"}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-detail"
-                      onClick={() => setSelectedDiecutId(row.id)}
-                    >
-                      編集
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={diecutPage}
+            totalPages={diecutTotalPages}
+            totalCount={diecutTotal}
+            rangeStart={diecutRangeStart}
+            rangeEnd={diecutRangeEnd}
+            setPage={setDiecutPage}
+          />
           {selectedDiecut ? (
             <div className="detail-form" style={{ marginTop: 12 }}>
               <label>
@@ -454,36 +485,46 @@ function SpecsPageInner() {
 
         <div className="panel">
           <h3>LC仕様</h3>
-          <table className="spec-table">
+          <table className="spec-table spec-table--list">
             <thead>
               <tr>
+                <th className="col-actions">操作</th>
                 <th>納品方法</th>
                 <th>仕様</th>
                 <th>表面印刷</th>
                 <th>版</th>
-                <th>選択</th>
               </tr>
             </thead>
             <tbody>
-              {filteredLcs.map((row) => (
+              {lcPageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button
+                        type="button"
+                        className="btn btn-detail btn-sm"
+                        onClick={() => setSelectedLcId(row.id)}
+                      >
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.delivery_method ?? "-"}</td>
                   <td>{row.specification ?? "-"}</td>
                   <td>{row.print_surface ?? "-"}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-detail"
-                      onClick={() => setSelectedLcId(row.id)}
-                    >
-                      編集
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={lcPage}
+            totalPages={lcTotalPages}
+            totalCount={lcTotal}
+            rangeStart={lcRangeStart}
+            rangeEnd={lcRangeEnd}
+            setPage={setLcPage}
+          />
           {selectedLc ? (
             <div className="detail-form" style={{ marginTop: 12 }}>
               <label>

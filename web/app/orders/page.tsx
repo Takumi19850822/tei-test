@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ScreenToolbar } from "@/app/_components/screen-toolbar";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
+import { useListPagination } from "@/hooks/useListPagination";
 
 type CaseRow = { id: string; case_name: string };
 type OrderRow = {
@@ -61,6 +63,25 @@ function OrdersPageInner() {
       ),
     [rows, listQuery],
   );
+  const listResetKey = `${caseId}\n${listQuery}`;
+  const {
+    pageItems: pageRows,
+    page,
+    totalPages,
+    total,
+    rangeStart,
+    rangeEnd,
+    setPage,
+  } = useListPagination(filteredRows, listResetKey);
+  const {
+    pageItems: linePageRows,
+    page: linePage,
+    totalPages: lineTotalPages,
+    total: lineTotal,
+    rangeStart: lineRangeStart,
+    rangeEnd: lineRangeEnd,
+    setPage: setLinePage,
+  } = useListPagination(lines, selectedId || "order-lines");
 
   const selected = useMemo(
     () => rows.find((row) => row.id === selectedId) ?? null,
@@ -69,7 +90,7 @@ function OrdersPageInner() {
 
   async function loadOrders(selectedCaseId: string) {
     if (!selectedCaseId) return setRows([]);
-    const data = await clientApi<OrderRow[]>(loginId, `/api/orders?caseId=${selectedCaseId}`);
+    const data = await clientApi(`/api/orders?caseId=${selectedCaseId}`);
     setRows(data);
     if (selectedId && !data.some((row) => row.id === selectedId)) {
       setSelectedId("");
@@ -78,14 +99,14 @@ function OrdersPageInner() {
 
   async function loadLines(orderId: string) {
     if (!orderId) return setLines([]);
-    const data = await clientApi<OrderLine[]>(loginId, `/api/order-lines?orderId=${orderId}`);
+    const data = await clientApi(`/api/order-lines?orderId=${orderId}`);
     setLines(data);
   }
 
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<CaseRow[]>(loginId, "/api/cases");
+        const data = await clientApi("/api/cases");
         setCases(data);
         const q = searchParams.get("caseId");
         if (q && data.some((c) => c.id === q)) {
@@ -111,11 +132,11 @@ function OrdersPageInner() {
 
   async function createLine() {
     if (!selectedId || !lineName.trim()) return;
-    await clientApi(loginId, "/api/order-lines", {
+    await clientApi("/api/order-lines", {
       method: "POST",
       body: JSON.stringify({
         orderId: selectedId,
-        lineNo: lines.length + 1,
+        lineNo: lines.length ? Math.max(...lines.map((l) => l.line_no)) + 1 : 1,
         itemName: lineName,
         unitPrice: linePrice,
         quantity: lineQty,
@@ -149,7 +170,7 @@ function OrdersPageInner() {
           className="btn btn-positive"
           href={caseId ? `/orders/new?caseId=${caseId}` : "/orders/new"}
         >
-          新規作成
+          新規追加
         </Link>
       </div>
       {selected ? (
@@ -175,7 +196,7 @@ function OrdersPageInner() {
           <table className="spec-table">
             <thead><tr><th>No</th><th>品名</th><th>単価</th><th>数量</th><th>単位</th><th>税額</th></tr></thead>
             <tbody>
-              {lines.map((line) => (
+              {linePageRows.map((line) => (
                 <tr key={line.id}>
                   <td>{line.line_no}</td>
                   <td>{line.item_name}</td>
@@ -187,27 +208,45 @@ function OrdersPageInner() {
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={linePage}
+            totalPages={lineTotalPages}
+            totalCount={lineTotal}
+            rangeStart={lineRangeStart}
+            rangeEnd={lineRangeEnd}
+            setPage={setLinePage}
+          />
         </div>
       ) : (
         <div className="list-panel">
-          <table className="spec-table">
-            <thead><tr><th>件名</th><th>日付</th><th>税込</th><th>版</th><th>詳細</th></tr></thead>
+          <table className="spec-table spec-table--list">
+            <thead><tr><th className="col-actions">操作</th><th>件名</th><th>日付</th><th>税込</th><th>版</th></tr></thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button type="button" className="btn btn-detail btn-sm" onClick={() => setSelectedId(row.id)}>
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.order_title}</td>
                   <td>{row.order_date}</td>
                   <td>{row.amount_incl_tax.toLocaleString()}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button className="btn btn-detail" onClick={() => setSelectedId(row.id)}>
-                      詳細
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalCount={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            setPage={setPage}
+          />
         </div>
       )}
     </section>

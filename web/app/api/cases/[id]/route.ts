@@ -86,6 +86,9 @@ export async function PATCH(request: Request, { params }: Params) {
     if (body.customerContactId !== undefined) {
       updates.customer_contact_id = uuidOrNull(body.customerContactId);
     }
+    if (body.customerId !== undefined) {
+      updates.customer_id = uuidOrNull(body.customerId);
+    }
 
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase

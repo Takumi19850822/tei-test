@@ -3,11 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 
 export default function NewDeliveryDestinationPage() {
-  const { loginId } = useAppContext();
   const router = useRouter();
   const [form, setForm] = useState({
     destinationName: "",
@@ -26,7 +24,7 @@ export default function NewDeliveryDestinationPage() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/delivery-destinations", {
+      await clientApi("/api/delivery-destinations", {
         method: "POST",
         body: JSON.stringify({
           destinationName: form.destinationName.trim(),

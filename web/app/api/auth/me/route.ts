@@ -6,16 +6,17 @@ import {
   serverError,
   unauthorized,
 } from "@/lib/api";
-import { fingerprintPassword, verifyPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
+import { buildSessionSetCookieHeader, getSessionLoginId, signSessionToken } from "@/lib/session";
 
 /**
  * ログイン中ユーザー自身のログインID・氏名・パスワード変更（社員管理の staff:2 不要）
  */
 export async function PATCH(request: Request) {
   try {
-    const loginIdHeader = request.headers.get("x-login-id");
-    if (!loginIdHeader?.trim()) {
-      return unauthorized("x-login-idヘッダが必要です。");
+    const sessionLoginId = await getSessionLoginId(request);
+    if (!sessionLoginId) {
+      return unauthorized("ログインが必要です。");
     }
 
     const body = await request.json();
@@ -36,7 +37,7 @@ export async function PATCH(request: Request) {
     const { data: user, error: fetchErr } = await supabase
       .from("users")
       .select("id, login_id, user_name, password_hash, is_active, version")
-      .eq("login_id", loginIdHeader.trim())
+      .eq("login_id", sessionLoginId)
       .maybeSingle();
 
     if (fetchErr) {
@@ -53,7 +54,7 @@ export async function PATCH(request: Request) {
     }
 
     const wantPw = newPassword.length > 0;
-    const wantId = newLoginId.length > 0 && newLoginId !== loginIdHeader.trim();
+    const wantId = newLoginId.length > 0 && newLoginId !== sessionLoginId;
     const wantName =
       newUserName.length > 0 && newUserName !== String(user.user_name ?? "").trim();
     if (!wantPw && !wantId && !wantName) {
@@ -80,7 +81,7 @@ export async function PATCH(request: Request) {
       version: expectedVersion + 1,
     };
     if (wantPw) {
-      updates.password_hash = await fingerprintPassword(newPassword);
+      updates.password_hash = await hashPassword(newPassword);
     }
     if (wantId) {
       updates.login_id = newLoginId;
@@ -104,7 +105,7 @@ export async function PATCH(request: Request) {
       return conflict("データが更新済みです。画面を再読み込みしてから再度お試しください。");
     }
 
-    return NextResponse.json(
+    const res = NextResponse.json(
       {
         ok: true,
         data: {
@@ -115,6 +116,11 @@ export async function PATCH(request: Request) {
       },
       { status: 200 },
     );
+    if (wantId) {
+      const token = await signSessionToken(updated.login_id);
+      res.headers.append("Set-Cookie", buildSessionSetCookieHeader(token));
+    }
+    return res;
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown error";
     return serverError("アカウントの更新に失敗しました。", details);
@@ -124,16 +130,16 @@ export async function PATCH(request: Request) {
 /** 自分の表示用（権限メニュー不要） */
 export async function GET(request: Request) {
   try {
-    const loginIdHeader = request.headers.get("x-login-id");
-    if (!loginIdHeader?.trim()) {
-      return unauthorized("x-login-idヘッダが必要です。");
+    const sessionLoginId = await getSessionLoginId(request);
+    if (!sessionLoginId) {
+      return unauthorized("ログインが必要です。");
     }
 
     const supabase = createSupabaseAdminClient();
     const { data: user, error } = await supabase
       .from("users")
       .select("login_id, user_name, version")
-      .eq("login_id", loginIdHeader.trim())
+      .eq("login_id", sessionLoginId)
       .eq("is_active", true)
       .maybeSingle();
 

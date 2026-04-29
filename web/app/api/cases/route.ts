@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         case_type_id: uuidOrNull(body.caseTypeId),
         customer_branch_id: uuidOrNull(body.customerBranchId),
         customer_contact_id: uuidOrNull(body.customerContactId),
+        customer_id: uuidOrNull(body.customerId),
       })
       .select("*")
       .single();

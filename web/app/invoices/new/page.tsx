@@ -22,7 +22,7 @@ function NewInvoiceInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<OrderRow[]>(loginId, "/api/orders");
+        const data = await clientApi("/api/orders");
         setOrders(data);
         const q = searchParams.get("orderId");
         if (q && data.some((o) => o.id === q)) {
@@ -50,7 +50,7 @@ function NewInvoiceInner() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/invoices", {
+      await clientApi("/api/invoices", {
         method: "POST",
         body: JSON.stringify({
           orderId,

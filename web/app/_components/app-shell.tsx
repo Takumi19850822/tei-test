@@ -140,11 +140,15 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 href="/login"
                 className="topbar-login-link"
-                onClick={() => {
-                  setLoginId("");
+                onClick={(e) => {
+                  e.preventDefault();
+                  void fetch("/api/auth/logout", { method: "POST", credentials: "include" }).finally(() => {
+                    setLoginId("");
+                    window.location.href = "/login";
+                  });
                 }}
               >
-                ログイン切替
+                ログアウト
               </Link>
             </div>
           </header>

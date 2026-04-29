@@ -21,7 +21,7 @@ function NewManufacturingInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<OrderRow[]>(loginId, "/api/orders");
+        const data = await clientApi("/api/orders");
         setOrders(data);
         const q = searchParams.get("orderId");
         if (q && data.some((o) => o.id === q)) {
@@ -40,7 +40,7 @@ function NewManufacturingInner() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/manufacturing-jobs", {
+      await clientApi("/api/manufacturing-jobs", {
         method: "POST",
         body: JSON.stringify({ orderId, moldNo: moldNo.trim() }),
       });

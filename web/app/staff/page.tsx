@@ -4,9 +4,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ScreenToolbar } from "@/app/_components/screen-toolbar";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
+import { useListPagination } from "@/hooks/useListPagination";
 
 type StaffRow = {
   id: string;
@@ -52,6 +54,15 @@ export default function StaffPage() {
       ),
     [rows, listQuery],
   );
+  const {
+    pageItems: pageRows,
+    page,
+    totalPages,
+    total,
+    rangeStart,
+    rangeEnd,
+    setPage,
+  } = useListPagination(filteredRows, listQuery);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === selectedId) ?? null,
@@ -60,8 +71,8 @@ export default function StaffPage() {
 
   async function loadAll() {
     const [staffData, groupData] = await Promise.all([
-      clientApi<StaffRow[]>(loginId, "/api/staff"),
-      clientApi<UserGroupRow[]>(loginId, "/api/user-groups"),
+      clientApi("/api/staff"),
+      clientApi("/api/user-groups"),
     ]);
     setRows(staffData);
     setGroups(groupData);
@@ -89,7 +100,7 @@ export default function StaffPage() {
     if (newPassword.trim()) {
       payload.newPassword = newPassword.trim();
     }
-    const updated = await clientApi<StaffRow>(loginId, `/api/staff/${selected.id}`, {
+    const updated = await clientApi(`/api/staff/${selected.id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });
@@ -110,7 +121,7 @@ export default function StaffPage() {
         {!selected ? (
           <ScreenToolbar searchValue={listQuery} onSearchChange={setListQuery}>
             <Link href="/staff/new" className="btn btn-positive">
-              新規作成
+              新規追加
             </Link>
           </ScreenToolbar>
         ) : null}
@@ -198,32 +209,42 @@ export default function StaffPage() {
         </div>
       ) : (
         <div className="list-panel">
-          <table className="spec-table">
+          <table className="spec-table spec-table--list">
             <thead>
               <tr>
+                <th className="col-actions">操作</th>
                 <th>氏名</th>
                 <th>ログインID</th>
                 <th>有効</th>
                 <th>版</th>
-                <th>詳細</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button type="button" className="btn btn-detail btn-sm" onClick={() => setSelectedId(row.id)}>
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.user_name}</td>
                   <td>{row.login_id}</td>
                   <td>{row.is_active ? "有効" : "無効"}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button className="btn btn-detail" onClick={() => setSelectedId(row.id)}>
-                      詳細
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalCount={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            setPage={setPage}
+          />
         </div>
       )}
     </section>

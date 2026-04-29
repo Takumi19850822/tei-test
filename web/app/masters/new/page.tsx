@@ -3,11 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 
 export default function NewTaxRatePage() {
-  const { loginId } = useAppContext();
   const router = useRouter();
   const [taxName, setTaxName] = useState("");
   const [rate, setRate] = useState("10");
@@ -19,7 +17,7 @@ export default function NewTaxRatePage() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/tax-rates", {
+      await clientApi("/api/tax-rates", {
         method: "POST",
         body: JSON.stringify({
           taxName: taxName.trim(),

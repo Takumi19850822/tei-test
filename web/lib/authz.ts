@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase";
+import { getSessionLoginId } from "@/lib/session";
 
 type AccessResult = {
   ok: boolean;
@@ -34,12 +35,12 @@ export async function ensureMenuAccess(
   menu: MenuPermissionKey,
   requiredLevel: 1 | 2 | 3,
 ): Promise<AccessResult> {
-  const loginId = request.headers.get("x-login-id");
+  const loginId = await getSessionLoginId(request);
   if (!loginId) {
     return {
       ok: false,
       status: 401,
-      message: "x-login-idヘッダが必要です。",
+      message: "ログインが必要です。",
     };
   }
 

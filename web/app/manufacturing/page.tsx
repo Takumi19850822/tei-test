@@ -5,9 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { ScreenToolbar } from "@/app/_components/screen-toolbar";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
+import { useListPagination } from "@/hooks/useListPagination";
 
 type OrderRow = { id: string; order_title: string; case_id: string };
 type JobRow = {
@@ -49,6 +51,16 @@ function ManufacturingPageInner() {
       ),
     [rows, listQuery],
   );
+  const listResetKey = `${orderId}\n${listQuery}`;
+  const {
+    pageItems: pageRows,
+    page,
+    totalPages,
+    total,
+    rangeStart,
+    rangeEnd,
+    setPage,
+  } = useListPagination(filteredRows, listResetKey);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === selectedId) ?? null,
@@ -56,7 +68,7 @@ function ManufacturingPageInner() {
   );
 
   async function loadOrders() {
-    const data = await clientApi<OrderRow[]>(loginId, "/api/orders");
+    const data = await clientApi("/api/orders");
     setOrders(data);
     setOrderId((prev) => {
       if (orderIdFromUrl && data.some((o) => o.id === orderIdFromUrl)) {
@@ -69,9 +81,7 @@ function ManufacturingPageInner() {
 
   async function loadJobs(selectedOrderId: string) {
     if (!selectedOrderId) return setRows([]);
-    const data = await clientApi<JobRow[]>(
-      loginId,
-      `/api/manufacturing-jobs?orderId=${selectedOrderId}`,
+    const data = await clientApi(`/api/manufacturing-jobs?orderId=${selectedOrderId}`,
     );
     setRows(data);
     if (selectedId && !data.some((row) => row.id === selectedId)) {
@@ -105,7 +115,7 @@ function ManufacturingPageInner() {
     canDeliver?: boolean;
   }) {
     if (!selected) return;
-    const updated = await clientApi<JobRow>(loginId, `/api/manufacturing-jobs/${selected.id}`, {
+    const updated = await clientApi(`/api/manufacturing-jobs/${selected.id}`, {
       method: "PATCH",
       body: JSON.stringify({
         ...patch,
@@ -137,7 +147,7 @@ function ManufacturingPageInner() {
           className="btn btn-positive"
           href={orderId ? `/manufacturing/new?orderId=${orderId}` : "/manufacturing/new"}
         >
-          新規作成
+          新規追加
         </Link>
       </div>
 
@@ -186,26 +196,36 @@ function ManufacturingPageInner() {
         </div>
       ) : (
         <div className="list-panel">
-          <table className="spec-table">
-            <thead><tr><th>型No</th><th>レーザー</th><th>型製作</th><th>検査</th><th>納品可</th><th>版</th><th>詳細</th></tr></thead>
+          <table className="spec-table spec-table--list">
+            <thead><tr><th className="col-actions">操作</th><th>型No</th><th>レーザー</th><th>型製作</th><th>検査</th><th>納品可</th><th>版</th></tr></thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button type="button" className="btn btn-detail btn-sm" onClick={() => setSelectedId(row.id)}>
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.mold_no ?? "-"}</td>
                   <td>{row.laser_done ? "完" : "未"}</td>
                   <td>{row.molding_done ? "完" : "未"}</td>
                   <td>{row.inspection_done ? "完" : "未"}</td>
                   <td>{row.can_deliver ? "可" : "不可"}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button className="btn btn-detail" onClick={() => setSelectedId(row.id)}>
-                      詳細
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalCount={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            setPage={setPage}
+          />
         </div>
       )}
     </section>

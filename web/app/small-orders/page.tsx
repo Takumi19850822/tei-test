@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ScreenToolbar } from "@/app/_components/screen-toolbar";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
+import { useListPagination } from "@/hooks/useListPagination";
 
 type CaseRow = { id: string; case_name: string };
 type SmallOrder = {
@@ -77,6 +79,25 @@ function SmallOrdersPageInner() {
       ),
     [rows, listQuery],
   );
+  const listResetKey = `${caseId}\n${listQuery}`;
+  const {
+    pageItems: pageRows,
+    page,
+    totalPages,
+    total,
+    rangeStart,
+    rangeEnd,
+    setPage,
+  } = useListPagination(filteredRows, listResetKey);
+  const {
+    pageItems: linePageRows,
+    page: linePage,
+    totalPages: lineTotalPages,
+    total: lineTotal,
+    rangeStart: lineRangeStart,
+    rangeEnd: lineRangeEnd,
+    setPage: setLinePage,
+  } = useListPagination(lines, selectedId || "small-order-lines");
 
   const selected = useMemo(
     () => rows.find((row) => row.id === selectedId) ?? null,
@@ -85,9 +106,7 @@ function SmallOrdersPageInner() {
 
   async function loadLinesForOrder(smallOrderId: string) {
     if (!smallOrderId) return setLines([]);
-    const data = await clientApi<SmallOrderLine[]>(
-      loginId,
-      `/api/small-order-lines?smallOrderId=${smallOrderId}`,
+    const data = await clientApi(`/api/small-order-lines?smallOrderId=${smallOrderId}`,
     );
     setLines(data);
   }
@@ -95,7 +114,7 @@ function SmallOrdersPageInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<CaseRow[]>(loginId, "/api/cases");
+        const data = await clientApi("/api/cases");
         setCases(data);
         const q = searchParams.get("caseId");
         if (q && data.some((c) => c.id === q)) {
@@ -111,9 +130,7 @@ function SmallOrdersPageInner() {
 
   async function loadRows(selectedCaseId: string) {
     if (!selectedCaseId) return setRows([]);
-    const data = await clientApi<SmallOrder[]>(
-      loginId,
-      `/api/small-orders?caseId=${selectedCaseId}`,
+    const data = await clientApi(`/api/small-orders?caseId=${selectedCaseId}`,
     );
     setRows(data);
     if (selectedId && !data.some((row) => row.id === selectedId)) {
@@ -139,7 +156,7 @@ function SmallOrdersPageInner() {
 
   async function saveRow() {
     if (!selected) return;
-    const updated = await clientApi<SmallOrder>(loginId, `/api/small-orders/${selected.id}`, {
+    const updated = await clientApi(`/api/small-orders/${selected.id}`, {
       method: "PATCH",
       body: JSON.stringify({
         orderDate: selected.order_date,
@@ -179,7 +196,7 @@ function SmallOrdersPageInner() {
 
   async function addLine() {
     if (!selected || !lineDetailName.trim()) return;
-    await clientApi(loginId, "/api/small-order-lines", {
+    await clientApi("/api/small-order-lines", {
       method: "POST",
       body: JSON.stringify({
         smallOrderId: selected.id,
@@ -191,7 +208,7 @@ function SmallOrdersPageInner() {
   }
 
   async function saveLine(line: SmallOrderLine) {
-    await clientApi(loginId, `/api/small-order-lines/${line.id}`, {
+    await clientApi(`/api/small-order-lines/${line.id}`, {
       method: "PATCH",
       body: JSON.stringify({
         detailName: line.detail_name,
@@ -227,7 +244,7 @@ function SmallOrdersPageInner() {
           className="btn btn-positive"
           href={caseId ? `/small-orders/new?caseId=${caseId}` : "/small-orders/new"}
         >
-          新規作成
+          新規追加
         </Link>
       </div>
       {selected ? (
@@ -406,9 +423,10 @@ function SmallOrdersPageInner() {
                 明細追加
               </button>
             </div>
-            <table className="spec-table">
+            <table className="spec-table spec-table--list">
               <thead>
                 <tr>
+                  <th>操作</th>
                   <th>No</th>
                   <th>明細名</th>
                   <th>予定時間</th>
@@ -416,12 +434,20 @@ function SmallOrdersPageInner() {
                   <th>予定金額</th>
                   <th>実績金額</th>
                   <th>版</th>
-                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line) => (
+                {linePageRows.map((line) => (
                   <tr key={line.id}>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-positive btn-sm"
+                        onClick={() => void saveLine(line)}
+                      >
+                        保存
+                      </button>
+                    </td>
                     <td>{line.line_no}</td>
                     <td>
                       <input
@@ -466,41 +492,50 @@ function SmallOrdersPageInner() {
                       />
                     </td>
                     <td>{line.version}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-positive"
-                        onClick={() => void saveLine(line)}
-                      >
-                        保存
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <ListPaginationBar
+              page={linePage}
+              totalPages={lineTotalPages}
+              totalCount={lineTotal}
+              rangeStart={lineRangeStart}
+              rangeEnd={lineRangeEnd}
+              setPage={setLinePage}
+            />
           </div>
         </div>
       ) : (
         <div className="list-panel">
-          <table className="spec-table">
-            <thead><tr><th>受注日</th><th>品名</th><th>実質請求額</th><th>版</th><th>詳細</th></tr></thead>
+          <table className="spec-table spec-table--list">
+            <thead><tr><th className="col-actions">操作</th><th>受注日</th><th>品名</th><th>実質請求額</th><th>版</th></tr></thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button type="button" className="btn btn-detail btn-sm" onClick={() => setSelectedId(row.id)}>
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.order_date ?? "-"}</td>
                   <td>{row.item_name ?? "-"}</td>
                   <td>{Number(row.final_billing_amount ?? 0).toLocaleString()}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button className="btn btn-detail" onClick={() => setSelectedId(row.id)}>
-                      詳細
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalCount={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            setPage={setPage}
+          />
         </div>
       )}
     </section>

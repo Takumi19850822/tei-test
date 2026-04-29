@@ -21,7 +21,7 @@ function NewOrderInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<CaseRow[]>(loginId, "/api/cases");
+        const data = await clientApi("/api/cases");
         setCases(data);
         const q = searchParams.get("caseId");
         if (q && data.some((c) => c.id === q)) {
@@ -40,7 +40,7 @@ function NewOrderInner() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/orders", {
+      await clientApi("/api/orders", {
         method: "POST",
         body: JSON.stringify({
           caseId,

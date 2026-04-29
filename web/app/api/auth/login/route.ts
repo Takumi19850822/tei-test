@@ -3,11 +3,13 @@ import { createSupabaseAdminClient } from "@/lib/supabase";
 import { badRequest, serverError, unauthorized } from "@/lib/api";
 import {
   PLACEHOLDER_PASSWORD_HASH,
-  fingerprintPassword,
+  hashPassword,
+  isLegacySha256Hash,
   verifyPassword,
 } from "@/lib/password";
+import { buildSessionSetCookieHeader, signSessionToken } from "@/lib/session";
 
-/** ヘッダ不要。login_id + パスワードで検証（x-login-id の前段） */
+/** ヘッダ不要。login_id + パスワードで検証し、HttpOnly セッション Cookie を発行する。 */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -30,35 +32,37 @@ export async function POST(request: Request) {
 
     const hashRaw = String(user.password_hash ?? "").trim();
 
-    const jsonOk = (loginIdOut: string, userName: string) =>
-      NextResponse.json(
+    function jsonOk(loginIdOut: string, userName: string) {
+      return NextResponse.json(
         { ok: true, data: { loginId: loginIdOut, userName } },
         { status: 200 },
       );
+    }
 
     const ok = await verifyPassword(password, hashRaw);
 
-    /**
-     * 初期シード直後・007 未適用などで password_hash がプレースホルダのまま、
-     * または REST で列が取れず空に見える場合の救済（login_id が owner かつパスワード owner のみ）。
-     * 初回成功時に sha256 を書き込んで以降は通常照合へ移行する。
-     */
+    const hashLooksUnset =
+      hashRaw === PLACEHOLDER_PASSWORD_HASH ||
+      hashRaw === "" ||
+      (!hashRaw.startsWith("sha256:") && !hashRaw.startsWith("pbkdf2:"));
+
     const needsOwnerBootstrap =
       loginId === "owner" &&
       password === "owner" &&
-      (!ok ||
-        hashRaw === PLACEHOLDER_PASSWORD_HASH ||
-        hashRaw === "" ||
-        !hashRaw.startsWith("sha256:"));
+      !ok &&
+      hashLooksUnset;
 
     if (needsOwnerBootstrap) {
-      const fixed = await fingerprintPassword("owner");
+      const fixed = await hashPassword("owner");
       const { error: upErr } = await supabase
         .from("users")
         .update({ password_hash: fixed })
         .eq("login_id", "owner");
       if (!upErr) {
-        return jsonOk(user.login_id, user.user_name);
+        const res = jsonOk(user.login_id, user.user_name);
+        const token = await signSessionToken(user.login_id);
+        res.headers.append("Set-Cookie", buildSessionSetCookieHeader(token));
+        return res;
       }
       return serverError("ログイン時のパスワード初期化に失敗しました。", upErr.message);
     }
@@ -76,7 +80,21 @@ export async function POST(request: Request) {
       return unauthorized("ログインIDまたはパスワードが正しくありません。");
     }
 
-    return jsonOk(user.login_id, user.user_name);
+    if (isLegacySha256Hash(hashRaw)) {
+      const newHash = await hashPassword(password);
+      const { error: upErr } = await supabase
+        .from("users")
+        .update({ password_hash: newHash })
+        .eq("login_id", loginId);
+      if (upErr) {
+        return serverError("パスワードハッシュの更新に失敗しました。", upErr.message);
+      }
+    }
+
+    const res = jsonOk(user.login_id, user.user_name);
+    const token = await signSessionToken(user.login_id);
+    res.headers.append("Set-Cookie", buildSessionSetCookieHeader(token));
+    return res;
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown error";
     return serverError("ログインに失敗しました。", details);

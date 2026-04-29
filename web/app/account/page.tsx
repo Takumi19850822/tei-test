@@ -23,7 +23,7 @@ export default function AccountPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void clientApi<MeRow>(loginId, "/api/auth/me")
+    void clientApi("/api/auth/me")
       .then((data) => {
         setRow(data);
         setEditUserName(data.user_name);
@@ -61,7 +61,7 @@ export default function AccountPage() {
       if (wantPw) payload.newPassword = newPassword.trim();
       if (wantId) payload.newLoginId = newLoginId.trim();
 
-      const updated = await clientApi<MeRow>(loginId, "/api/auth/me", {
+      const updated = await clientApi("/api/auth/me", {
         method: "PATCH",
         body: JSON.stringify(payload),
       });

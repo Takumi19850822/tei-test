@@ -3,14 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 
 export default function NewCustomerPage() {
-  const { loginId } = useAppContext();
   const router = useRouter();
   const [organizationName, setOrganizationName] = useState("");
-  const [departmentName, setDepartmentName] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -19,11 +16,10 @@ export default function NewCustomerPage() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/customers", {
+      await clientApi("/api/customers", {
         method: "POST",
         body: JSON.stringify({
           organizationName: organizationName.trim(),
-          departmentName: departmentName.trim() || undefined,
         }),
       });
       router.push("/customers");
@@ -44,13 +40,12 @@ export default function NewCustomerPage() {
         </Link>
       </div>
       <div className="detail-form">
+        <p className="detail-summary">
+          会社名のみ登録します。顧客部署は「拠点」タブから拠点を追加するときに入力してください。
+        </p>
         <label>
-          顧客団体名
+          会社名（団体名）
           <input value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} />
-        </label>
-        <label>
-          顧客部署名（任意）
-          <input value={departmentName} onChange={(e) => setDepartmentName(e.target.value)} />
         </label>
         <button type="button" className="btn btn-positive" disabled={saving} onClick={() => void submit()}>
           保存

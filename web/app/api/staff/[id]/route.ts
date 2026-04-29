@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase";
 import { badRequest, conflict, forbidden, serverError, unauthorized } from "@/lib/api";
 import { ensureMenuAccess } from "@/lib/authz";
-import { fingerprintPassword } from "@/lib/password";
+import { hashPassword } from "@/lib/password";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const newPwd = String(body.newPassword ?? "").trim();
     if (newPwd) {
-      updates.password_hash = await fingerprintPassword(newPwd);
+      updates.password_hash = await hashPassword(newPwd);
     }
 
     const supabase = createSupabaseAdminClient();

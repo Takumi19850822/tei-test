@@ -38,6 +38,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const updates: Record<string, unknown> = {
       version: expectedVersion + 1,
+      department_name: String(body.departmentName ?? "").trim() || null,
       postal_code: String(body.postalCode ?? "").trim() || null,
       prefecture: String(body.prefecture ?? "").trim() || null,
       city: String(body.city ?? "").trim() || null,

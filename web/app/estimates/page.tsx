@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ScreenToolbar } from "@/app/_components/screen-toolbar";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
 import { rowMatchesSearch } from "@/lib/list-search";
+import { useListPagination } from "@/hooks/useListPagination";
 
 type Estimate = {
   id: string;
@@ -65,6 +67,25 @@ function EstimatesPageInner() {
       ),
     [rows, listQuery],
   );
+  const listResetKey = `${selectedCaseId}\n${listQuery}`;
+  const {
+    pageItems: pageRows,
+    page,
+    totalPages,
+    total,
+    rangeStart,
+    rangeEnd,
+    setPage,
+  } = useListPagination(filteredRows, listResetKey);
+  const {
+    pageItems: linePageRows,
+    page: linePage,
+    totalPages: lineTotalPages,
+    total: lineTotal,
+    rangeStart: lineRangeStart,
+    rangeEnd: lineRangeEnd,
+    setPage: setLinePage,
+  } = useListPagination(lines, selectedId || "estimate-lines");
 
   const selected = useMemo(
     () => rows.find((row) => row.id === selectedId) ?? null,
@@ -73,7 +94,7 @@ function EstimatesPageInner() {
 
   async function loadEstimates(caseId: string) {
     if (!caseId) return setRows([]);
-    const data = await clientApi<Estimate[]>(loginId, `/api/estimates?caseId=${caseId}`);
+    const data = await clientApi(`/api/estimates?caseId=${caseId}`);
     setRows(data);
     if (selectedId && !data.some((row) => row.id === selectedId)) {
       setSelectedId("");
@@ -82,9 +103,7 @@ function EstimatesPageInner() {
 
   async function loadLines(estimateId: string) {
     if (!estimateId) return setLines([]);
-    const data = await clientApi<EstimateLine[]>(
-      loginId,
-      `/api/estimate-lines?estimateId=${estimateId}`,
+    const data = await clientApi(`/api/estimate-lines?estimateId=${estimateId}`,
     );
     setLines(data);
   }
@@ -92,7 +111,7 @@ function EstimatesPageInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await clientApi<CaseRow[]>(loginId, "/api/cases");
+        const data = await clientApi("/api/cases");
         setCases(data);
         const q = searchParams.get("caseId");
         if (q && data.some((c) => c.id === q)) {
@@ -120,11 +139,11 @@ function EstimatesPageInner() {
 
   async function createLine() {
     if (!selectedId || !lineName.trim()) return;
-    await clientApi(loginId, "/api/estimate-lines", {
+    await clientApi("/api/estimate-lines", {
       method: "POST",
       body: JSON.stringify({
         estimateId: selectedId,
-        lineNo: lines.length + 1,
+        lineNo: lines.length ? Math.max(...lines.map((l) => l.line_no)) + 1 : 1,
         itemName: lineName,
         unitPrice: linePrice,
         quantity: lineQty,
@@ -162,7 +181,7 @@ function EstimatesPageInner() {
               : "/estimates/new"
           }
         >
-          新規作成
+          新規追加
         </Link>
       </div>
       {selected ? (
@@ -188,7 +207,7 @@ function EstimatesPageInner() {
           <table className="spec-table">
             <thead><tr><th>No</th><th>品名</th><th>単価</th><th>数量</th><th>単位</th><th>税額</th></tr></thead>
             <tbody>
-              {lines.map((line) => (
+              {linePageRows.map((line) => (
                 <tr key={line.id}>
                   <td>{line.line_no}</td>
                   <td>{line.item_name}</td>
@@ -200,27 +219,45 @@ function EstimatesPageInner() {
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={linePage}
+            totalPages={lineTotalPages}
+            totalCount={lineTotal}
+            rangeStart={lineRangeStart}
+            rangeEnd={lineRangeEnd}
+            setPage={setLinePage}
+          />
         </div>
       ) : (
         <div className="list-panel">
-          <table className="spec-table">
-            <thead><tr><th>件名</th><th>日付</th><th>税込</th><th>版</th><th>詳細</th></tr></thead>
+          <table className="spec-table spec-table--list">
+            <thead><tr><th className="col-actions">操作</th><th>件名</th><th>日付</th><th>税込</th><th>版</th></tr></thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="table-actions-cell">
+                    <div className="table-actions">
+                      <button type="button" className="btn btn-detail btn-sm" onClick={() => setSelectedId(row.id)}>
+                        詳細
+                      </button>
+                    </div>
+                  </td>
                   <td>{row.estimate_subject}</td>
                   <td>{row.estimate_date}</td>
                   <td>{row.total_amount.toLocaleString()}</td>
                   <td>{row.version}</td>
-                  <td>
-                    <button className="btn btn-detail" onClick={() => setSelectedId(row.id)}>
-                      詳細
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalCount={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            setPage={setPage}
+          />
         </div>
       )}
     </section>

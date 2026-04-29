@@ -26,7 +26,7 @@ function NewSpecInner() {
     void (async () => {
       try {
         const url = caseIdFilter ? `/api/orders?caseId=${caseIdFilter}` : "/api/orders";
-        const data = await clientApi<OrderRow[]>(loginId, url);
+        const data = await clientApi(url);
         setOrders(data);
         const q = searchParams.get("orderId");
         if (q && data.some((o) => o.id === q)) {
@@ -47,7 +47,7 @@ function NewSpecInner() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/diecut-specs", {
+      await clientApi("/api/diecut-specs", {
         method: "POST",
         body: JSON.stringify({
           orderId,
@@ -68,7 +68,7 @@ function NewSpecInner() {
     setSaving(true);
     setError("");
     try {
-      await clientApi(loginId, "/api/lc-specs", {
+      await clientApi("/api/lc-specs", {
         method: "POST",
         body: JSON.stringify({
           orderId,

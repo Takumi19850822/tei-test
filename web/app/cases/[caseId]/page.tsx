@@ -3,13 +3,21 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import {
+  applyCustomerPick,
+  CaseCustomerNameField,
+  CaseCustomerRelations,
+} from "@/app/_components/case-customer-fields";
+import { ListPaginationBar } from "@/app/_components/list-pagination-bar";
 import { useAppContext } from "@/app/_components/app-context";
 import { clientApi } from "@/lib/client-api";
+import { useListPagination } from "@/hooks/useListPagination";
 
 type CaseRow = {
   id: string;
   case_name: string;
   customer_name: string;
+  customer_id: string | null;
   status: string;
   memo: string | null;
   version: number;
@@ -69,13 +77,40 @@ export default function CaseDetailPage() {
   const [caseTypes, setCaseTypes] = useState<CaseTypeRow[]>([]);
 
   const memoizedCaseId = useMemo(() => caseId, [caseId]);
+  const {
+    pageItems: estimatePageRows,
+    page: estimatePage,
+    totalPages: estimateTotalPages,
+    total: estimateTotal,
+    rangeStart: estimateRangeStart,
+    rangeEnd: estimateRangeEnd,
+    setPage: setEstimatePage,
+  } = useListPagination(estimates, `${memoizedCaseId}-estimates`);
+  const {
+    pageItems: smallOrderPageRows,
+    page: smallOrderPage,
+    totalPages: smallOrderTotalPages,
+    total: smallOrderTotal,
+    rangeStart: smallOrderRangeStart,
+    rangeEnd: smallOrderRangeEnd,
+    setPage: setSmallOrderPage,
+  } = useListPagination(smallOrders, `${memoizedCaseId}-small-orders`);
+  const {
+    pageItems: orderPageRows,
+    page: caseOrderPage,
+    totalPages: caseOrderTotalPages,
+    total: caseOrderTotal,
+    rangeStart: caseOrderRangeStart,
+    rangeEnd: caseOrderRangeEnd,
+    setPage: setCaseOrderPage,
+  } = useListPagination(orders, `${memoizedCaseId}-orders`);
 
   useEffect(() => {
     void (async () => {
       try {
         const [u, t] = await Promise.all([
-          clientApi<UserOption[]>(loginId, "/api/users"),
-          clientApi<CaseTypeRow[]>(loginId, "/api/case-types"),
+          clientApi("/api/users"),
+          clientApi("/api/case-types"),
         ]);
         setUsers(u);
         setCaseTypes(t);
@@ -90,7 +125,7 @@ export default function CaseDetailPage() {
     if (!memoizedCaseId) return;
     void (async () => {
       try {
-        const row = await clientApi<CaseRow>(loginId, `/api/cases/${memoizedCaseId}`);
+        const row = await clientApi(`/api/cases/${memoizedCaseId}`);
         setCaseRow(row);
       } catch (e) {
         setError(e instanceof Error ? e.message : "案件の取得に失敗しました");
@@ -103,22 +138,17 @@ export default function CaseDetailPage() {
     void (async () => {
       try {
         if (tab === "estimate") {
-          const data = await clientApi<EstimateRow[]>(
-            loginId,
+          const data = await clientApi(
             `/api/estimates?caseId=${memoizedCaseId}`,
           );
           setEstimates(data);
         } else if (tab === "small") {
-          const data = await clientApi<SmallOrderRow[]>(
-            loginId,
+          const data = await clientApi(
             `/api/small-orders?caseId=${memoizedCaseId}`,
           );
           setSmallOrders(data);
         } else if (tab === "order") {
-          const data = await clientApi<OrderRow[]>(
-            loginId,
-            `/api/orders?caseId=${memoizedCaseId}`,
-          );
+          const data = await clientApi(`/api/orders?caseId=${memoizedCaseId}`);
           setOrders(data);
         }
       } catch (e) {
@@ -132,7 +162,7 @@ export default function CaseDetailPage() {
     setSaving(true);
     setError("");
     try {
-      const updated = await clientApi<CaseRow>(loginId, `/api/cases/${caseRow.id}`, {
+      const updated = await clientApi(`/api/cases/${caseRow.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           caseName: caseRow.case_name,
@@ -141,6 +171,7 @@ export default function CaseDetailPage() {
           memo: caseRow.memo ?? "",
           salesUserId: caseRow.sales_user_id ?? "",
           caseTypeId: caseRow.case_type_id ?? "",
+          customerId: caseRow.customer_id ?? "",
           customerBranchId: caseRow.customer_branch_id ?? "",
           customerContactId: caseRow.customer_contact_id ?? "",
           version: caseRow.version,
@@ -176,88 +207,95 @@ export default function CaseDetailPage() {
       {caseRow ? (
         <div className="detail-panel">
           <h3>案件基本情報</h3>
-          <div className="detail-form">
-            <label>
+          <div className="detail-form detail-form--case">
+            <label className="case-field-full">
               案件名
               <input
                 value={caseRow.case_name}
                 onChange={(e) => setCaseRow({ ...caseRow, case_name: e.target.value })}
               />
             </label>
-            <label>
-              顧客名
-              <input
-                value={caseRow.customer_name}
-                onChange={(e) => setCaseRow({ ...caseRow, customer_name: e.target.value })}
-              />
-            </label>
-            <label>
-              営業担当
-              <select
-                value={caseRow.sales_user_id ?? ""}
-                onChange={(e) =>
-                  setCaseRow({
-                    ...caseRow,
-                    sales_user_id: e.target.value || null,
-                  })
-                }
-              >
-                <option value="">（未設定）</option>
-                {users
-                  .filter((u) => u.is_active)
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.user_name}（{u.login_id}）
+            <div className="case-form-row3">
+              <label>
+                営業担当
+                <select
+                  value={caseRow.sales_user_id ?? ""}
+                  onChange={(e) =>
+                    setCaseRow({
+                      ...caseRow,
+                      sales_user_id: e.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">（未設定）</option>
+                  {users
+                    .filter((u) => u.is_active)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.user_name}（{u.login_id}）
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                案件種別
+                <select
+                  value={caseRow.case_type_id ?? ""}
+                  onChange={(e) =>
+                    setCaseRow({
+                      ...caseRow,
+                      case_type_id: e.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">（未設定）</option>
+                  {caseTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.type_name}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
-              案件種別
-              <select
-                value={caseRow.case_type_id ?? ""}
-                onChange={(e) =>
-                  setCaseRow({
-                    ...caseRow,
-                    case_type_id: e.target.value || null,
-                  })
-                }
-              >
-                <option value="">（未設定）</option>
-                {caseTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.type_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              顧客拠点ID（customer_branches.id）
-              <input
-                value={caseRow.customer_branch_id ?? ""}
-                onChange={(e) =>
-                  setCaseRow({
-                    ...caseRow,
-                    customer_branch_id: e.target.value.trim() || null,
-                  })
-                }
-                placeholder="UUID"
-              />
-            </label>
-            <label>
-              顧客担当者ID（customer_contacts.id）
-              <input
-                value={caseRow.customer_contact_id ?? ""}
-                onChange={(e) =>
-                  setCaseRow({
-                    ...caseRow,
-                    customer_contact_id: e.target.value.trim() || null,
-                  })
-                }
-                placeholder="UUID"
-              />
-            </label>
-            <label>
+                </select>
+              </label>
+              <label>
+                顧客名
+                <CaseCustomerNameField
+                  value={caseRow.customer_name}
+                  onChange={(v) =>
+                    setCaseRow({
+                      ...caseRow,
+                      customer_name: v,
+                      customer_id: null,
+                    })
+                  }
+                  onPick={(c) => {
+                    const p = applyCustomerPick(c);
+                    setCaseRow({
+                      ...caseRow,
+                      customer_name: p.customerName,
+                      customer_id: p.customerId,
+                      customer_branch_id: null,
+                      customer_contact_id: null,
+                    });
+                  }}
+                  linkedCustomerId={caseRow.customer_id}
+                />
+              </label>
+            </div>
+            <CaseCustomerRelations
+              key={`${caseRow.id}-${caseRow.customer_id ?? "none"}`}
+              customerId={caseRow.customer_id}
+              branchId={caseRow.customer_branch_id}
+              contactId={caseRow.customer_contact_id}
+              onBranchChange={(v) =>
+                setCaseRow({
+                  ...caseRow,
+                  customer_branch_id: v,
+                  customer_contact_id: null,
+                })
+              }
+              onContactChange={(v) => setCaseRow({ ...caseRow, customer_contact_id: v })}
+            />
+            <label className="case-field-std">
               状態
               <select
                 value={caseRow.status}
@@ -268,7 +306,7 @@ export default function CaseDetailPage() {
                 <option value="done">done</option>
               </select>
             </label>
-            <label>
+            <label className="case-field-std">
               メモ
               <textarea
                 value={caseRow.memo ?? ""}
@@ -318,14 +356,18 @@ export default function CaseDetailPage() {
       </div>
 
       {tab === "estimate" ? (
-        <div className="sub-block" style={{ marginTop: 12 }}>
+        <div className="sub-block">
           <div className="tab-panel-toolbar">
-            <Link className="btn btn-detail" href={`/estimates?caseId=${memoizedCaseId}`}>
-              一覧・編集
-            </Link>
-            <Link className="btn btn-positive" href={`/estimates/new?caseId=${memoizedCaseId}`}>
-              新規作成
-            </Link>
+            <div className="tab-panel-toolbar__lead">
+              <Link className="btn btn-detail" href={`/estimates?caseId=${memoizedCaseId}`}>
+                一覧・編集
+              </Link>
+            </div>
+            <div className="tab-panel-toolbar__end">
+              <Link className="btn btn-positive" href={`/estimates/new?caseId=${memoizedCaseId}`}>
+                新規追加
+              </Link>
+            </div>
           </div>
           <table className="spec-table">
             <thead>
@@ -337,7 +379,7 @@ export default function CaseDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {estimates.map((row) => (
+              {estimatePageRows.map((row) => (
                 <tr key={row.id}>
                   <td>{row.estimate_subject}</td>
                   <td>{row.estimate_date}</td>
@@ -347,18 +389,30 @@ export default function CaseDetailPage() {
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={estimatePage}
+            totalPages={estimateTotalPages}
+            totalCount={estimateTotal}
+            rangeStart={estimateRangeStart}
+            rangeEnd={estimateRangeEnd}
+            setPage={setEstimatePage}
+          />
         </div>
       ) : null}
 
       {tab === "small" ? (
-        <div className="sub-block" style={{ marginTop: 12 }}>
+        <div className="sub-block">
           <div className="tab-panel-toolbar">
-            <Link className="btn btn-detail" href={`/small-orders?caseId=${memoizedCaseId}`}>
-              一覧・編集
-            </Link>
-            <Link className="btn btn-positive" href={`/small-orders/new?caseId=${memoizedCaseId}`}>
-              新規作成
-            </Link>
+            <div className="tab-panel-toolbar__lead">
+              <Link className="btn btn-detail" href={`/small-orders?caseId=${memoizedCaseId}`}>
+                一覧・編集
+              </Link>
+            </div>
+            <div className="tab-panel-toolbar__end">
+              <Link className="btn btn-positive" href={`/small-orders/new?caseId=${memoizedCaseId}`}>
+                新規追加
+              </Link>
+            </div>
           </div>
           <table className="spec-table">
             <thead>
@@ -370,7 +424,7 @@ export default function CaseDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {smallOrders.map((row) => (
+              {smallOrderPageRows.map((row) => (
                 <tr key={row.id}>
                   <td>{row.order_date ?? "-"}</td>
                   <td>{row.item_name ?? "-"}</td>
@@ -380,18 +434,30 @@ export default function CaseDetailPage() {
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={smallOrderPage}
+            totalPages={smallOrderTotalPages}
+            totalCount={smallOrderTotal}
+            rangeStart={smallOrderRangeStart}
+            rangeEnd={smallOrderRangeEnd}
+            setPage={setSmallOrderPage}
+          />
         </div>
       ) : null}
 
       {tab === "order" ? (
-        <div className="sub-block" style={{ marginTop: 12 }}>
+        <div className="sub-block">
           <div className="tab-panel-toolbar">
-            <Link className="btn btn-detail" href={`/orders?caseId=${memoizedCaseId}`}>
-              一覧・編集
-            </Link>
-            <Link className="btn btn-positive" href={`/orders/new?caseId=${memoizedCaseId}`}>
-              新規作成
-            </Link>
+            <div className="tab-panel-toolbar__lead">
+              <Link className="btn btn-detail" href={`/orders?caseId=${memoizedCaseId}`}>
+                一覧・編集
+              </Link>
+            </div>
+            <div className="tab-panel-toolbar__end">
+              <Link className="btn btn-positive" href={`/orders/new?caseId=${memoizedCaseId}`}>
+                新規追加
+              </Link>
+            </div>
           </div>
           <table className="spec-table">
             <thead>
@@ -403,7 +469,7 @@ export default function CaseDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {orders.map((row) => (
+              {orderPageRows.map((row) => (
                 <tr key={row.id}>
                   <td>{row.order_title}</td>
                   <td>{row.order_date}</td>
@@ -413,20 +479,34 @@ export default function CaseDetailPage() {
               ))}
             </tbody>
           </table>
+          <ListPaginationBar
+            page={caseOrderPage}
+            totalPages={caseOrderTotalPages}
+            totalCount={caseOrderTotal}
+            rangeStart={caseOrderRangeStart}
+            rangeEnd={caseOrderRangeEnd}
+            setPage={setCaseOrderPage}
+          />
         </div>
       ) : null}
 
       {tab === "spec" ? (
-        <div className="sub-block" style={{ marginTop: 12 }}>
-          <p>この案件の受注に紐づく抜き型・LC仕様の一覧・編集、または新規登録は次の画面へ。</p>
+        <div className="sub-block">
           <div className="tab-panel-toolbar">
-            <Link className="btn btn-detail" href={`/specs?caseId=${memoizedCaseId}`}>
-              一覧・編集
-            </Link>
-            <Link className="btn btn-positive" href={`/specs/new?caseId=${memoizedCaseId}`}>
-              新規作成
-            </Link>
+            <div className="tab-panel-toolbar__lead">
+              <Link className="btn btn-detail" href={`/specs?caseId=${memoizedCaseId}`}>
+                一覧・編集
+              </Link>
+            </div>
+            <div className="tab-panel-toolbar__end">
+              <Link className="btn btn-positive" href={`/specs/new?caseId=${memoizedCaseId}`}>
+                新規追加
+              </Link>
+            </div>
           </div>
+          <p className="screen-note">
+            この案件の受注に紐づく抜き型・LC仕様の一覧・編集、または新規登録は次の画面へ。
+          </p>
         </div>
       ) : null}
     </section>

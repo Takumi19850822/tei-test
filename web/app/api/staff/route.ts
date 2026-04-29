@@ -7,7 +7,7 @@ import {
   unauthorized,
 } from "@/lib/api";
 import { ensureMenuAccess } from "@/lib/authz";
-import { fingerprintPassword } from "@/lib/password";
+import { hashPassword } from "@/lib/password";
 
 export async function GET(request: Request) {
   try {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     if (!pwd) {
       return badRequest("初期パスワードは必須です（ログイン時に使用します）。");
     }
-    const password_hash = await fingerprintPassword(pwd);
+    const password_hash = await hashPassword(pwd);
 
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
