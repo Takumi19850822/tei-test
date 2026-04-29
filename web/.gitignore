@@ -45,3 +45,6 @@ next-env.d.ts
 
 # OpenNext
 .open-next
+
+# Wrangler / Miniflare ローカル状態（SQLite キャッシュ。コミットしない）
+.wrangler/
