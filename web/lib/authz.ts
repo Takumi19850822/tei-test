@@ -16,6 +16,12 @@ const MENU_PERMISSIONS = {
   manufacturingJobs: "manufacturing-jobs",
   diecutSpecs: "diecut-specs",
   lcSpecs: "lc-specs",
+  customers: "customers",
+  customerBranches: "customer-branches",
+  customerContacts: "customer-contacts",
+  billingInfos: "billing-infos",
+  deliveryDestinations: "delivery-destinations",
+  invoices: "invoices",
 } as const;
 
 export type MenuPermissionKey = keyof typeof MENU_PERMISSIONS;
